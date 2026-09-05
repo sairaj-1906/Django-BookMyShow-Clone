@@ -1,0 +1,13 @@
+{
+    "builds": [{
+        "src": "bookmymovie/wsgi.py",
+        "use": "@vercel/python",
+        "config": { "maxLambdaSize": "15mb", "runtime": "python3.14" }
+    }],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "bookmymovie/wsgi.py"
+        }
+    ]
+}
