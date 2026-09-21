@@ -127,7 +127,7 @@
       {% for movie in movies|slice:":4" %}
       <div class="col-md-3 col-sm-6">
         <!-- Wrap the card in an anchor to make the entire card clickable -->
-        <a href="{% url 'theater_list' movie.id %}" class="text-decoration-none">
+        <a href="{% url 'movie_detail' movie.id %}" class="text-decoration-none">
           <div class="card h-100">
             <img
               src="{{ movie.image.url }}"
