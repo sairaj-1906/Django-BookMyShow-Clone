@@ -47,57 +47,39 @@ Django-BookMyShow-Clone/
 ### Installation
 
 1. Clone the repository
-<<<<<<< HEAD
 
-=======
->>>>>>> 37bd9750f23681ef00a6cd2fe0a5d50115c4fea8
    ```bash
    git clone https://github.com/sairaj-1906/Django-BookMyShow-Clone.git
    cd Django-BookMyShow-Clone
    ```
 
 2. Create and activate a virtual environment
-<<<<<<< HEAD
 
-=======
->>>>>>> 37bd9750f23681ef00a6cd2fe0a5d50115c4fea8
    ```bash
    python -m venv venv
    source venv/bin/activate   # On Windows: venv\Scripts\activate
    ```
 
 3. Install dependencies
-<<<<<<< HEAD
 
-=======
->>>>>>> 37bd9750f23681ef00a6cd2fe0a5d50115c4fea8
    ```bash
    pip install -r requirements.txt
    ```
 
 4. Apply migrations
-<<<<<<< HEAD
 
-=======
->>>>>>> 37bd9750f23681ef00a6cd2fe0a5d50115c4fea8
    ```bash
    python manage.py migrate
    ```
 
 5. Create a superuser (optional, for admin access)
-<<<<<<< HEAD
 
-=======
->>>>>>> 37bd9750f23681ef00a6cd2fe0a5d50115c4fea8
    ```bash
    python manage.py createsuperuser
    ```
 
 6. Run the development server
-<<<<<<< HEAD
 
-=======
->>>>>>> 37bd9750f23681ef00a6cd2fe0a5d50115c4fea8
    ```bash
    python manage.py runserver
    ```
