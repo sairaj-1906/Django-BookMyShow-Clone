@@ -11,6 +11,17 @@ urlpatterns = [
     path("reviews/<int:review_id>/delete/", views.delete_review, name="delete_review"),
     path("reviews/<int:review_id>/report/", views.report_review, name="report_review"),
     path("shows/<int:show_id>/seats/book/", views.book_seats, name="book_seats"),
+    path("shows/<int:show_id>/seats/status/", views.seat_status, name="seat_status"),
+    path("shows/<int:show_id>/seats/hold/", views.hold_seats, name="hold_seats"),
+    path(
+        "shows/<int:show_id>/seats/release/", views.release_seats, name="release_seats"
+    ),
+    path("shows/<int:show_id>/checkout/", views.checkout, name="checkout"),
+    path(
+        "shows/<int:show_id>/checkout/confirm/",
+        views.confirm_booking,
+        name="confirm_booking",
+    ),
     path(
         "theater/<int:theater_id>/seats/book/",
         views.book_seats_legacy,

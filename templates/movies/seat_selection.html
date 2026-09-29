@@ -1,4 +1,4 @@
-{% extends "users/basic.html" %} {% block content %}
+{% extends "users/basic.html" %} {% block content %} {% csrf_token %}
 <div class="container mt-5">
   <div class="row">
     <div class="col-lg-8 mx-auto">
@@ -8,24 +8,18 @@
             class="d-flex justify-content-between align-items-center flex-wrap"
           >
             <div>
-              <h4 class="card-title">
-                {% if show %}{{ show.movie.name }}{% else %}{{
-                theater.movie.name }}{% endif %}
-              </h4>
+              <h4 class="card-title">{{ show.movie.name }}</h4>
               <p class="card-text text-muted">
-                {% if show %} {{ show.theater.name }} | {{
-                show.date_time|date:"d M, g:i A" }} {% else %} {{ theater.name
-                }} | {{ theater.time }} {% endif %}
+                {{ show.theater.name }} | {{ show.date_time|date:"d M, g:i A" }}
               </p>
             </div>
             <div class="mt-2 mt-sm-0">
               <span class="badge bg-secondary"
-                >{% if show %}{{ show.get_screen_format_display }}{% endif
-                %}</span
+                >{{ show.get_screen_format_display }}</span
               >
-              <button class="btn btn-outline-primary mb-2 mb-sm-0">
-                {{ seats|length }} Tickets
-              </button>
+              <span class="badge bg-info text-dark"
+                >₹{{ show.price }} / seat</span
+              >
             </div>
           </div>
         </div>
@@ -33,87 +27,122 @@
 
       <div class="card">
         <div class="card-body">
-          <h5 class="card-title text-center mb-4">Select Your Seats</h5>
+          <h5 class="card-title text-center mb-2">Select Your Seats</h5>
+          <p class="text-center text-muted small mb-3">
+            Seats you select are held for you for {{ hold_minutes }} minutes. If
+            payment isn't completed in that time, they're automatically released
+            back to everyone.
+          </p>
           <div class="screen">All eyes this way please!</div>
 
-          {% if error %}
-          <div class="alert alert-danger">{{ error }}</div>
-          {% endif %}
+          <div id="seat-error" class="alert alert-danger d-none"></div>
+          <div id="seat-info" class="alert alert-info d-none"></div>
 
-          <form method="POST">
-            {% csrf_token %}
-            <div class="d-flex justify-content-center flex-wrap mb-4">
-              {% for seat in seats %}
-              <div class="seat {% if seat.is_booked %}sold{% endif %}">
-                {% if not seat.is_booked %}
-                <input
-                  type="checkbox"
-                  name="seats"
-                  value="{{ seat.id }}"
-                  class="d-none"
-                  id="seat-{{ seat.id }}"
-                />
-                <label
-                  for="seat-{{ seat.id }}"
-                  class="w-100 h-100 d-flex align-items-center justify-content-center"
-                  >{{ seat.seat_number }}</label
-                >
-                {% else %} {{ seat.seat_number }} {% endif %}
-              </div>
-              {% endfor %}
+          <div
+            class="d-flex justify-content-center flex-wrap mb-4"
+            id="seat-grid"
+            data-show-id="{{ show.id }}"
+          >
+            {% for seat in seats %}
+            <div
+              class="seat"
+              id="seat-{{ seat.id }}"
+              data-seat-id="{{ seat.id }}"
+              data-seat-number="{{ seat.seat_number }}"
+            >
+              {{ seat.seat_number }}
             </div>
+            {% endfor %}
+          </div>
 
-            <div class="d-flex justify-content-center mb-4">
-              <div class="d-flex align-items-center me-4">
-                <div class="seat" style="background-color: white"></div>
-                <span class="ms-2">Available</span>
-              </div>
-              <div class="d-flex align-items-center me-4">
-                <div class="seat selected"></div>
-                <span class="ms-2">Selected</span>
-              </div>
-              <div class="d-flex align-items-center">
-                <div class="seat sold"></div>
-                <span class="ms-2">Sold</span>
-              </div>
+          <div class="d-flex justify-content-center flex-wrap mb-4">
+            <div class="d-flex align-items-center me-4 mb-2">
+              <div class="seat legend available"></div>
+              <span class="ms-2">Available</span>
             </div>
+            <div class="d-flex align-items-center me-4 mb-2">
+              <div class="seat legend selected"></div>
+              <span class="ms-2">Selected by you</span>
+            </div>
+            <div class="d-flex align-items-center me-4 mb-2">
+              <div class="seat legend reserved"></div>
+              <span class="ms-2">Reserved by another user</span>
+            </div>
+            <div class="d-flex align-items-center mb-2">
+              <div class="seat legend sold"></div>
+              <span class="ms-2">Booked</span>
+            </div>
+          </div>
 
-            <div class="text-center">
-              <button type="submit" class="btn btn-success btn-lg">
-                Book Selected Seats
-              </button>
-            </div>
-          </form>
+          <div class="text-center mb-3">
+            <span
+              id="countdown-wrap"
+              class="badge bg-warning text-dark d-none"
+              style="font-size: 14px"
+            >
+              Your seats are held for <span id="countdown">2:00</span>
+            </span>
+          </div>
+
+          <div class="text-center">
+            <button id="proceed-btn" class="btn btn-success btn-lg" disabled>
+              Proceed to Payment
+            </button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+
 <style>
   .seat {
-    width: 30px;
-    height: 30px;
+    width: 34px;
+    height: 34px;
     border: 1px solid #28a745;
     margin: 3px;
     text-align: center;
-    line-height: 30px;
+    line-height: 34px;
     cursor: pointer;
     border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    user-select: none;
     transition:
-      background-color 0.3s,
-      color 0.3s;
+      background-color 0.2s,
+      color 0.2s,
+      border-color 0.2s;
   }
-  .seat:hover {
-    background-color: #28a745;
-    color: white;
+  .seat.available {
+    background-color: white;
+    color: #212529;
+  }
+  .seat.available:hover {
+    background-color: #d4edda;
   }
   .seat.selected {
     background-color: #28a745;
     color: white;
+    border-color: #28a745;
+  }
+  .seat.reserved {
+    background-color: #fff3cd;
+    border-color: #ffc107;
+    color: #856404;
+    cursor: not-allowed;
   }
   .seat.sold {
     background-color: #ccc;
+    border-color: #ccc;
+    color: #666;
     cursor: not-allowed;
+  }
+  .seat.legend {
+    cursor: default;
+    width: 24px;
+    height: 24px;
   }
   .screen {
     margin: 20px 0;
@@ -124,4 +153,154 @@
     color: #666;
   }
 </style>
+
+<script>
+  (function () {
+    const showId = document.getElementById("seat-grid").dataset.showId;
+    const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]")
+      ? document.querySelector("[name=csrfmiddlewaretoken]").value
+      : (document.cookie.match(/csrftoken=([^;]+)/) || [])[1];
+
+    const seatGrid = document.getElementById("seat-grid");
+    const errorBox = document.getElementById("seat-error");
+    const infoBox = document.getElementById("seat-info");
+    const proceedBtn = document.getElementById("proceed-btn");
+    const countdownWrap = document.getElementById("countdown-wrap");
+    const countdownEl = document.getElementById("countdown");
+
+    let myExpiryTime = null;
+    let countdownTimer = null;
+    let pending = false;
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.remove("d-none");
+      infoBox.classList.add("d-none");
+    }
+    function showInfo(msg) {
+      infoBox.textContent = msg;
+      infoBox.classList.remove("d-none");
+      errorBox.classList.add("d-none");
+    }
+    function clearMessages() {
+      errorBox.classList.add("d-none");
+      infoBox.classList.add("d-none");
+    }
+
+    function applyStatuses(seats) {
+      let anySelected = false;
+      let earliestExpiry = null;
+      Object.keys(seats).forEach(function (seatId) {
+        const info = seats[seatId];
+        const el = document.getElementById("seat-" + seatId);
+        if (!el) return;
+        el.classList.remove("available", "selected", "reserved", "sold");
+        el.classList.add(info.status);
+        if (info.status === "selected") {
+          anySelected = true;
+          if (info.expires_at) {
+            const t = new Date(info.expires_at).getTime();
+            if (earliestExpiry === null || t < earliestExpiry)
+              earliestExpiry = t;
+          }
+        }
+      });
+      proceedBtn.disabled = !anySelected;
+      if (earliestExpiry) {
+        myExpiryTime = earliestExpiry;
+        startCountdown();
+      } else {
+        myExpiryTime = null;
+        countdownWrap.classList.add("d-none");
+        if (countdownTimer) clearInterval(countdownTimer);
+      }
+    }
+
+    function startCountdown() {
+      countdownWrap.classList.remove("d-none");
+      if (countdownTimer) clearInterval(countdownTimer);
+      countdownTimer = setInterval(function () {
+        const remaining = Math.max(
+          0,
+          Math.floor((myExpiryTime - Date.now()) / 1000),
+        );
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        countdownEl.textContent = m + ":" + (s < 10 ? "0" : "") + s;
+        if (remaining <= 0) {
+          clearInterval(countdownTimer);
+          showInfo(
+            "Your held seats have expired and were released. Please select again.",
+          );
+          refreshStatus();
+        }
+      }, 1000);
+    }
+
+    function refreshStatus() {
+      fetch("/movies/shows/" + showId + "/seats/status/")
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          applyStatuses(data.seats);
+        });
+    }
+
+    function postSeats(url, seatIds) {
+      const formData = new FormData();
+      seatIds.forEach(function (id) {
+        formData.append("seats", id);
+      });
+      return fetch(url, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrfToken },
+        body: formData,
+      }).then(function (r) {
+        return r.json().then(function (data) {
+          return { ok: r.ok, data: data };
+        });
+      });
+    }
+
+    seatGrid.addEventListener("click", function (e) {
+      const seatEl = e.target.closest(".seat");
+      if (!seatEl || pending) return;
+      if (
+        seatEl.classList.contains("sold") ||
+        seatEl.classList.contains("reserved")
+      )
+        return;
+
+      const seatId = seatEl.dataset.seatId;
+      const isMine = seatEl.classList.contains("selected");
+      pending = true;
+      clearMessages();
+
+      const action = isMine
+        ? postSeats("/movies/shows/" + showId + "/seats/release/", [seatId])
+        : postSeats("/movies/shows/" + showId + "/seats/hold/", [seatId]);
+
+      action
+        .then(function (result) {
+          pending = false;
+          if (!result.ok) {
+            showError(result.data.error || "That seat is no longer available.");
+          }
+          if (result.data.seats) applyStatuses(result.data.seats);
+        })
+        .catch(function () {
+          pending = false;
+          showError("Something went wrong — please try again.");
+        });
+    });
+
+    proceedBtn.addEventListener("click", function () {
+      window.location.href = "/movies/shows/" + showId + "/checkout/";
+    });
+
+    refreshStatus();
+    setInterval(refreshStatus, 4000);
+  })();
+</script>
 {% endblock %}

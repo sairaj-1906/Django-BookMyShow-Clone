@@ -295,6 +295,61 @@ class Seat(models.Model):
     def __str__(self):
         return self.seat_number
 
+    def active_hold(self):
+        """The current non-expired hold on this seat, if any (assumes .hold was select_related/prefetched
+        where possible; falls back to a query otherwise)."""
+        hold = getattr(self, "_prefetched_hold", None)
+        if hold is None:
+            hold = SeatHold.objects.filter(seat=self).first()
+        if hold and hold.is_expired():
+            return None
+        return hold
+
+    def status_for(self, user):
+        """One of 'booked', 'selected' (held by this user), 'reserved' (held by someone else), 'available'."""
+        if self.is_booked:
+            return "booked"
+        hold = self.active_hold()
+        if hold is None:
+            return "available"
+        if user is not None and user.is_authenticated and hold.user_id == user.id:
+            return "selected"
+        return "reserved"
+
+
+class SeatHold(models.Model):
+    """A temporary claim on a seat while a user is choosing seats / on the way to payment.
+
+    A seat can have at most one hold at a time (enforced by the OneToOneField's unique
+    constraint at the database level) — this is what stops two people from ever both
+    reserving the same seat, even if they click at the exact same instant.
+    """
+
+    HOLD_DURATION = timezone.timedelta(minutes=2)
+
+    seat = models.OneToOneField(Seat, on_delete=models.CASCADE, related_name="hold")
+    show = models.ForeignKey(
+        Show, on_delete=models.CASCADE, related_name="seat_holds", null=True, blank=True
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="seat_holds"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        indexes = [models.Index(fields=["expires_at"])]
+
+    def __str__(self):
+        return f"Hold on {self.seat.seat_number} by {self.user.username} until {self.expires_at}"
+
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @classmethod
+    def new_expiry(cls):
+        return timezone.now() + cls.HOLD_DURATION
+
 
 class Booking(models.Model):
     user = models.ForeignKey(

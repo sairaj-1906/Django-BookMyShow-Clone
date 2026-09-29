@@ -11,6 +11,7 @@ from .models import (
     Review,
     ReviewReport,
     Seat,
+    SeatHold,
     Show,
     Theater,
 )
@@ -115,6 +116,21 @@ class SeatAdmin(admin.ModelAdmin):
 class BookingAdmin(admin.ModelAdmin):
     list_display = ["user", "seat", "movie", "show", "booked_at"]
     list_filter = ["movie"]
+
+
+@admin.register(SeatHold)
+class SeatHoldAdmin(admin.ModelAdmin):
+    """Mostly useful for debugging live reservations — holds normally expire and get
+    cleaned up on their own within a couple of minutes."""
+
+    list_display = ["seat", "show", "user", "created_at", "expires_at", "is_expired"]
+    list_filter = ["show"]
+    readonly_fields = ["created_at"]
+
+    def is_expired(self, obj):
+        return obj.is_expired()
+
+    is_expired.boolean = True
 
 
 class ReviewReportInline(admin.TabularInline):

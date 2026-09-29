@@ -91,10 +91,10 @@ DATABASES = {
     }
 }
 
-DATABASES['default'] = cast(
-    dict[str, Any],
-    dj_database_url.parse('postgresql://django_bookmyshow_qvm8_user:DIKZYRFNOhfLirRZGkUwrsxoUIzHULPy@dpg-dadtv0qd0e5s73ebvaug-a.oregon-postgres.render.com/django_bookmyshow_qvm8'),
-)
+# DATABASES['default'] = cast(
+#     dict[str, Any],
+#     dj_database_url.parse('postgresql://django_bookmyshow_qvm8_user:DIKZYRFNOhfLirRZGkUwrsxoUIzHULPy@dpg-dadtv0qd0e5s73ebvaug-a.oregon-postgres.render.com/django_bookmyshow_qvm8'),
+# )
 # 
 
 # Password validation
