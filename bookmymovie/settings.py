@@ -59,6 +59,14 @@ EMAIL_BACKEND='django.core.mail.backends.console.EmailBackend'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Razorpay test/live keys - get these from https://dashboard.razorpay.com/app/keys
+# and set them as real environment variables. Never commit real keys to the repo.
+RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
+# Seperate secret configured under Settings > Webhooks in the Razorpay dashboard -
+# used only to verify incoming webhook calls, never sent to the browser.
+RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
+
 
 ROOT_URLCONF = 'bookmymovie.urls'
 LOGIN_URL='/login/'

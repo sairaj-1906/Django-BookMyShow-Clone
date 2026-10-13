@@ -1,16 +1,26 @@
+import json
 import time
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .forms import ReviewForm, ReviewReportForm
-from .models import Booking, Movie, Review, Seat, SeatHold, Show, Theater
+from .models import Booking, Movie, Payment, Review, Seat, SeatHold, Show, Theater
+from .payments import (
+    PaymentVerificationError,
+    create_order,
+    verify_payment_signature,
+    verify_webhook_signature,
+)
 
 
 def _run_atomic_with_retry(fn, attempts=5, base_delay=0.05):
@@ -375,11 +385,11 @@ def release_seats(request, show_id):
 
 @login_required(login_url="/login/")
 def checkout(request, show_id):
-    """Summary screen: shows the seats the user currently has on hold, the total price,
-    and a countdown to when the hold expires."""
+    """Create (or resume) a Razorpay order for the seats the user currently has on hold,
+    and render the payment page embedding Razorpay's Checkout.js widget."""
     show = get_object_or_404(Show, id=show_id)
     _purge_expired_holds(show)
-    holds = (
+    holds = list(
         SeatHold.objects.filter(show=show, user=request.user)
         .select_related("seat")
         .order_by("seat__seat_number")
@@ -390,51 +400,83 @@ def checkout(request, show_id):
         )
         return redirect("book_seats", show_id=show.id)
 
+    seats = [hold.seat for hold in holds]
+    seat_ids = sorted(seat.id for seat in seats)
+    total_price = show.price * len(seats)
     earliest_expiry = min(hold.expires_at for hold in holds)
-    total_price = show.price * holds.count()
+
+    # Reuse a still-pending order for the exact same seats (e.g. the user refreshed the
+    # page) instead of creating a brand-new Razorpay order on every load.
+    existing = (
+        Payment.objects.filter(
+            user=request.user, show=show, status=Payment.STATUS_CREATED
+        )
+        .prefetch_related("seats")
+        .order_by("-created_at")
+        .first()
+    )
+    if existing and sorted(s.id for s in existing.seats.all()) == seat_ids:
+        payment = existing
+    else:
+        order = create_order(
+            amount_in_paise=int(total_price * 100),
+            currency="INR",
+            receipt=f"show{show.id}-user{request.user.id}-{int(timezone.now().timestamp())}",
+            notes={"show_id": str(show.id), "user_id": str(request.user.id)},
+        )
+        payment = Payment.objects.create(
+            user=request.user,
+            show=show,
+            seat_numbers=", ".join(seat.seat_number for seat in seats),
+            amount=total_price,
+            currency="INR",
+            razorpay_order_id=order["id"],
+        )
+        payment.seats.set(seats)
+
     return render(
         request,
         "movies/checkout.html",
         {
             "show": show,
             "holds": holds,
+            "payment": payment,
             "total_price": total_price,
             "expires_at": earliest_expiry,
+            "razorpay_key_id": settings.RAZORPAY_KEY_ID,
         },
     )
 
 
-@login_required(login_url="/login/")
-@require_POST
-def confirm_booking(request, show_id):
-    """Finalize payment: turn this user's still-valid holds into real Bookings.
+def _finalize_booking_for_payment(
+    payment_id, razorpay_payment_id=None, razorpay_signature=None
+):
+    """Idempotently turn a paid-for Payment's seats into real Bookings.
 
-    Everything happens inside one atomic transaction with row-level locks on the seats
-    being booked, so if two requests somehow race to confirm the same seat, only one can
-    succeed — the Booking.seat OneToOneField's unique constraint is a further,
-    database-enforced guarantee that a seat is never double-booked.
+    Safe to call twice for the same payment — e.g. once from the browser's success
+    callback and again from the async webhook. The second call sees status already
+    'success' under the row lock and does nothing further, so duplicate confirmations can
+    never create duplicate bookings. Booking.seat's OneToOneField is a further,
+    database-enforced backstop even if that check were ever bypassed.
     """
-    show = get_object_or_404(Show, id=show_id)
     outcome = {}
 
-    def _do_confirm():
-        holds = list(
-            SeatHold.objects.select_for_update()
-            .select_related("seat")
-            .filter(show=show, user=request.user)
+    def _do():
+        payment = (
+            Payment.objects.select_for_update()
+            .select_related("show")
+            .get(id=payment_id)
         )
-        if not holds:
-            outcome["result"] = "no_holds"
+        if payment.status == Payment.STATUS_SUCCESS:
+            outcome["result"] = "already_processed"
             return
 
-        expired = [h for h in holds if h.is_expired()]
-        if expired:
-            SeatHold.objects.filter(id__in=[h.id for h in expired]).delete()
-            outcome["result"] = "expired"
-            return
+        if razorpay_payment_id:
+            payment.razorpay_payment_id = razorpay_payment_id
+        if razorpay_signature:
+            payment.razorpay_signature = razorpay_signature
 
-        seat_ids = [h.seat_id for h in holds]
-        seats = Seat.objects.select_for_update().filter(id__in=seat_ids)
+        seats = list(Seat.objects.select_for_update().filter(payments=payment))
         failed = []
         created_bookings = []
         for seat in seats:
@@ -443,11 +485,12 @@ def confirm_booking(request, show_id):
                 continue
             try:
                 booking = Booking.objects.create(
-                    user=request.user,
+                    user=payment.user,
                     seat=seat,
-                    movie=show.movie,
-                    theater=show.theater,
-                    show=show,
+                    movie=payment.show.movie,
+                    theater=payment.show.theater,
+                    show=payment.show,
+                    payment=payment,
                 )
             except IntegrityError:
                 failed.append(seat.seat_number)
@@ -456,52 +499,198 @@ def confirm_booking(request, show_id):
             seat.save(update_fields=["is_booked"])
             created_bookings.append(booking)
 
-        SeatHold.objects.filter(seat_id__in=seat_ids, user=request.user).delete()
+        SeatHold.objects.filter(seat__in=seats, user=payment.user).delete()
 
+        payment.status = Payment.STATUS_SUCCESS
         if failed:
-            outcome["result"] = "partial_failure" if created_bookings else "failure"
-            outcome["failed"] = failed
+            payment.failure_reason = (
+                f"Seats already taken at confirmation time: {', '.join(failed)}"
+            )[:255]
+        payment.save(
+            update_fields=[
+                "status",
+                "failure_reason",
+                "razorpay_payment_id",
+                "razorpay_signature",
+                "updated_at",
+            ]
+        )
+
+        if failed and created_bookings:
+            outcome["result"] = "partial_failure"
+        elif failed:
+            outcome["result"] = "failure"
         else:
             outcome["result"] = "success"
+        outcome["failed"] = failed
+
+    _run_atomic_with_retry(_do)
+    return outcome
+
+
+def _mark_payment_unsuccessful(payment_id, status, reason="", razorpay_payment_id=None):
+    """Mark a payment failed or cancelled and immediately release its held seats, so they
+    become bookable by someone else right away instead of waiting out the hold window.
+    """
+
+    def _do():
+        payment = Payment.objects.select_for_update().get(id=payment_id)
+        if payment.status != Payment.STATUS_CREATED:
+            return  # already resolved (success/failed/cancelled) via another path — leave it alone
+        payment.status = status
+        payment.failure_reason = reason[:255]
+        if razorpay_payment_id:
+            payment.razorpay_payment_id = razorpay_payment_id
+        payment.save(
+            update_fields=[
+                "status",
+                "failure_reason",
+                "razorpay_payment_id",
+                "updated_at",
+            ]
+        )
+        SeatHold.objects.filter(
+            seat__in=payment.seats.all(), user=payment.user
+        ).delete()
+
+    _run_atomic_with_retry(_do)
+
+
+@login_required(login_url="/login/")
+@require_POST
+def verify_payment(request, payment_id):
+    """Called by the browser (Razorpay Checkout.js 'handler' callback) right after the
+    user completes payment. Verifies the cryptographic signature server-side before
+    trusting anything the client sent, then finalizes the booking."""
+    payment = get_object_or_404(Payment, id=payment_id, user=request.user)
+    razorpay_payment_id = request.POST.get("razorpay_payment_id", "")
+    razorpay_order_id = request.POST.get("razorpay_order_id", "")
+    razorpay_signature = request.POST.get("razorpay_signature", "")
+
+    if razorpay_order_id != payment.razorpay_order_id:
+        return JsonResponse({"success": False, "error": "Order mismatch."}, status=400)
 
     try:
-        _run_atomic_with_retry(_do_confirm)
-    except OperationalError:
-        messages.error(
-            request, "The system is busy — please try confirming your booking again."
+        verify_payment_signature(
+            razorpay_order_id, razorpay_payment_id, razorpay_signature
         )
-        return redirect("checkout", show_id=show.id)
+    except PaymentVerificationError:
+        _mark_payment_unsuccessful(
+            payment.id,
+            Payment.STATUS_FAILED,
+            reason="Signature verification failed",
+            razorpay_payment_id=razorpay_payment_id,
+        )
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Payment verification failed. Please try again.",
+            },
+            status=400,
+        )
 
-    result = outcome.get("result")
-    if result == "no_holds":
-        messages.error(
-            request,
-            "Your seat selection expired before payment was completed. Please reselect your seats.",
-        )
-        return redirect("book_seats", show_id=show.id)
-    if result == "expired":
-        messages.error(
-            request,
-            "Some of your selected seats' hold time ran out. Please reselect your seats.",
-        )
-        return redirect("book_seats", show_id=show.id)
-    if result in ("failure", "partial_failure"):
-        failed = ", ".join(outcome.get("failed", []))
-        if result == "partial_failure":
-            messages.error(
-                request,
-                f"Sorry — these seats were just booked by someone else: {failed}. "
-                "The rest of your seats were booked successfully.",
-            )
-        else:
-            messages.error(
-                request,
-                f"Sorry — these seats were just booked by someone else: {failed}.",
-            )
-        return redirect("book_seats", show_id=show.id)
+    outcome = _finalize_booking_for_payment(
+        payment.id, razorpay_payment_id, razorpay_signature
+    )
+    result = outcome["result"]
 
-    messages.success(request, "Payment successful — your seats are booked!")
-    return redirect("profile")
+    if result in ("success", "already_processed"):
+        return JsonResponse({"success": True, "redirect_url": reverse("profile")})
+    if result == "partial_failure":
+        return JsonResponse(
+            {
+                "success": True,
+                "redirect_url": reverse("profile"),
+                "warning": (
+                    f"Note: these seats were already taken by the time payment was confirmed: "
+                    f"{', '.join(outcome['failed'])}. Please contact support for a refund on those."
+                ),
+            }
+        )
+    return JsonResponse(
+        {
+            "success": False,
+            "error": (
+                f"Sorry — these seats were already booked by someone else: "
+                f"{', '.join(outcome['failed'])}. Your payment was captured; please contact "
+                "support for a refund."
+            ),
+        },
+        status=409,
+    )
+
+
+@login_required(login_url="/login/")
+@require_POST
+def cancel_payment(request, payment_id):
+    """Called when the user dismisses the Razorpay modal without paying. Releases the
+    held seats immediately instead of making other users wait out the full hold window.
+    """
+    payment = get_object_or_404(Payment, id=payment_id, user=request.user)
+    _mark_payment_unsuccessful(
+        payment.id, Payment.STATUS_CANCELLED, reason="Cancelled by user"
+    )
+    return JsonResponse({"success": True})
+
+
+@csrf_exempt
+@require_POST
+def razorpay_webhook(request):
+    """Server-to-server notification from Razorpay — the authoritative source of truth
+    for payment status. The browser's verify_payment call gives a fast redirect, but if
+    the user closes the tab right after paying, this webhook is what still confirms the
+    booking, so a completed payment is never lost."""
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    body = request.body
+    try:
+        verify_webhook_signature(body, signature)
+    except PaymentVerificationError:
+        return HttpResponse(status=400)
+
+    try:
+        event = json.loads(body.decode("utf-8"))
+    except (ValueError, TypeError, UnicodeDecodeError):
+        return HttpResponse(status=400)
+
+    event_type = event.get("event", "")
+    payload_entity = event.get("payload", {}).get("payment", {}).get("entity", {})
+    order_id = payload_entity.get("order_id")
+    razorpay_payment_id = payload_entity.get("id")
+
+    if not order_id:
+        return HttpResponse(
+            status=200
+        )  # nothing actionable — acknowledge so Razorpay stops retrying
+
+    try:
+        payment = Payment.objects.get(razorpay_order_id=order_id)
+    except Payment.DoesNotExist:
+        return HttpResponse(status=200)
+
+    if event_type == "payment.captured":
+        _finalize_booking_for_payment(payment.id, razorpay_payment_id)
+    elif event_type == "payment.failed":
+        reason = payload_entity.get("error_description") or "Payment failed"
+        _mark_payment_unsuccessful(
+            payment.id,
+            Payment.STATUS_FAILED,
+            reason=reason,
+            razorpay_payment_id=razorpay_payment_id,
+        )
+
+    return HttpResponse(status=200)
+
+
+@login_required(login_url="/login/")
+def payment_history(request):
+    """Full payment + booking history for the logged-in user's profile."""
+    payments = (
+        Payment.objects.filter(user=request.user)
+        .select_related("show", "show__movie", "show__theater")
+        .prefetch_related("bookings")
+        .order_by("-created_at")
+    )
+    return render(request, "movies/payment_history.html", {"payments": payments})
 
 
 @login_required(login_url="/login/")

@@ -1,4 +1,6 @@
-{% extends "users/basic.html" %} {% block content %}
+{% extends "users/basic.html" %}
+{% block content %}
+{% csrf_token %}
 <div class="container mt-5">
   <div class="row">
     <div class="col-lg-6 mx-auto">
@@ -6,26 +8,25 @@
         <div class="card-body">
           <h4 class="card-title">Confirm &amp; Pay</h4>
           <p class="text-muted">
-            {{ show.movie.name }} — {{ show.theater.name }} | {{
-            show.date_time|date:"d M, g:i A" }}
+            {{ show.movie.name }} — {{ show.theater.name }} | {{ show.date_time|date:"d M, g:i A" }}
           </p>
 
-          {% if messages %} {% for message in messages %}
-          <div class="alert alert-info">{{ message }}</div>
-          {% endfor %} {% endif %}
+          {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-info">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+
+          <div id="payment-error" class="alert alert-danger d-none"></div>
+          <div id="payment-warning" class="alert alert-warning d-none"></div>
 
           <div class="alert alert-warning" id="checkout-countdown">
-            Complete payment within
-            <strong><span id="countdown">2:00</span></strong> or these seats
-            will be released.
+            Complete payment within <strong><span id="countdown">2:00</span></strong> or these seats will be released.
           </div>
 
           <table class="table">
             <thead>
-              <tr>
-                <th>Seat</th>
-                <th class="text-end">Price</th>
-              </tr>
+              <tr><th>Seat</th><th class="text-end">Price</th></tr>
             </thead>
             <tbody>
               {% for hold in holds %}
@@ -43,44 +44,118 @@
             </tfoot>
           </table>
 
-          <form method="POST" action="{% url 'confirm_booking' show.id %}">
-            {% csrf_token %}
-            <div class="d-grid">
-              <button type="submit" class="btn btn-success btn-lg">
-                Pay ₹{{ total_price }} &amp; Confirm Booking
-              </button>
-            </div>
-          </form>
-          <div class="d-grid mt-2">
-            <a
-              href="{% url 'book_seats' show.id %}"
-              class="btn btn-outline-secondary"
-              >Change seat selection</a
-            >
+          <div class="d-grid">
+            <button id="pay-btn" class="btn btn-success btn-lg">
+              Pay ₹{{ total_price }} with Razorpay
+            </button>
           </div>
+          <div class="d-grid mt-2">
+            <a href="{% url 'book_seats' show.id %}" class="btn btn-outline-secondary">Change seat selection</a>
+          </div>
+          <p class="text-muted text-center mt-3" style="font-size: 12px;">
+            Payments are processed securely by Razorpay. Your card/UPI details never touch this server.
+          </p>
         </div>
       </div>
     </div>
   </div>
 </div>
 
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
-  (function () {
-    const expiresAt = new Date("{{ expires_at|date:'c' }}").getTime();
-    const countdownEl = document.getElementById("countdown");
-    const timer = setInterval(function () {
-      const remaining = Math.max(
-        0,
-        Math.floor((expiresAt - Date.now()) / 1000),
-      );
-      const m = Math.floor(remaining / 60);
-      const s = remaining % 60;
-      countdownEl.textContent = m + ":" + (s < 10 ? "0" : "") + s;
-      if (remaining <= 0) {
-        clearInterval(timer);
-        window.location.reload();
-      }
-    }, 1000);
-  })();
+(function () {
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const paymentId = {{ payment.id }};
+  const orderId = "{{ payment.razorpay_order_id }}";
+  const keyId = "{{ razorpay_key_id }}";
+  const amountPaise = {{ payment.amount_in_paise }};
+  const showId = {{ show.id }};
+  const expiresAt = new Date("{{ expires_at|date:'c' }}").getTime();
+
+  const errorBox = document.getElementById('payment-error');
+  const warningBox = document.getElementById('payment-warning');
+  const countdownEl = document.getElementById('countdown');
+  const payBtn = document.getElementById('pay-btn');
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.remove('d-none');
+  }
+  function showWarning(msg) {
+    warningBox.textContent = msg;
+    warningBox.classList.remove('d-none');
+  }
+
+  const countdownTimer = setInterval(function () {
+    const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    countdownEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    if (remaining <= 0) {
+      clearInterval(countdownTimer);
+      window.location.reload();
+    }
+  }, 1000);
+
+  function postForm(url, data) {
+    const formData = new FormData();
+    Object.keys(data).forEach(function (k) { formData.append(k, data[k]); });
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+      body: formData,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function openCheckout() {
+    const options = {
+      key: keyId,
+      amount: amountPaise,
+      currency: "INR",
+      name: "BookMySeat",
+      description: "{{ show.movie.name|escapejs }} — {{ show.theater.name|escapejs }}",
+      order_id: orderId,
+      // Razorpay's own in-modal retry for a declined attempt, before the whole order is abandoned.
+      retry: { enabled: true, max_count: 3 },
+      handler: function (response) {
+        payBtn.disabled = true;
+        payBtn.textContent = "Confirming payment...";
+        postForm('/movies/payments/' + paymentId + '/verify/', {
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_signature: response.razorpay_signature,
+        }).then(function (result) {
+          if (result.data.success) {
+            if (result.data.warning) showWarning(result.data.warning);
+            window.location.href = result.data.redirect_url;
+          } else {
+            showError(result.data.error || "Payment could not be verified.");
+            payBtn.disabled = false;
+            payBtn.textContent = "Pay ₹{{ total_price }} with Razorpay";
+          }
+        }).catch(function () {
+          showError("Something went wrong verifying your payment. Please contact support if money was deducted.");
+          payBtn.disabled = false;
+        });
+      },
+      modal: {
+        ondismiss: function () {
+          postForm('/movies/payments/' + paymentId + '/cancel/', {}).then(function () {
+            showWarning("Payment was cancelled — your seats have been released. Please reselect to try again.");
+            payBtn.disabled = true;
+          });
+        },
+      },
+      theme: { color: "#28a745" },
+    };
+    const rzp = new Razorpay(options);
+    rzp.on('payment.failed', function (response) {
+      showError("Payment failed: " + (response.error && response.error.description ? response.error.description : "please try again."));
+    });
+    rzp.open();
+  }
+
+  payBtn.addEventListener('click', openCheckout);
+})();
 </script>
 {% endblock %}

@@ -8,6 +8,7 @@ from .models import (
     Movie,
     MovieCastCredit,
     MoviePoster,
+    Payment,
     Review,
     ReviewReport,
     Seat,
@@ -114,8 +115,30 @@ class SeatAdmin(admin.ModelAdmin):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ["user", "seat", "movie", "show", "booked_at"]
+    list_display = ["user", "seat", "movie", "show", "payment", "booked_at"]
     list_filter = ["movie"]
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = [
+        "razorpay_order_id",
+        "user",
+        "show",
+        "amount",
+        "status",
+        "razorpay_payment_id",
+        "created_at",
+    ]
+    list_filter = ["status", "currency"]
+    search_fields = ["razorpay_order_id", "razorpay_payment_id", "user__username"]
+    readonly_fields = [
+        "razorpay_order_id",
+        "razorpay_payment_id",
+        "razorpay_signature",
+        "created_at",
+        "updated_at",
+    ]
 
 
 @admin.register(SeatHold)

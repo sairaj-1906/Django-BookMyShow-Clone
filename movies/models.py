@@ -351,6 +351,61 @@ class SeatHold(models.Model):
         return timezone.now() + cls.HOLD_DURATION
 
 
+class Payment(models.Model):
+    STATUS_CREATED = "created"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [
+        (STATUS_CREATED, "Created"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="payments"
+    )
+    show = models.ForeignKey(Show, on_delete=models.CASCADE, related_name="payments")
+    seats = models.ManyToManyField(
+        Seat,
+        related_name="payments",
+        help_text="The specific seats this payment/order was created for",
+    )
+    seat_numbers = models.CharField(
+        max_length=255,
+        help_text="Snapshot of the seats this payment was for, comma-separated",
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=10, default="INR")
+
+    razorpay_order_id = models.CharField(max_length=100, unique=True)
+    razorpay_payment_id = models.CharField(
+        max_length=100, blank=True, null=True, unique=True
+    )
+    razorpay_signature = models.CharField(max_length=255, blank=True)
+
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default=STATUS_CREATED
+    )
+    failure_reason = models.CharField(max_length=255, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return (
+            f"Payment {self.razorpay_order_id} ({self.status}) — {self.user.username}"
+        )
+
+    @property
+    def amount_in_paise(self):
+        return int(self.amount * 100)
+
+
 class Booking(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="bookings"
@@ -362,6 +417,13 @@ class Booking(models.Model):
     )
     show = models.ForeignKey(
         Show, on_delete=models.CASCADE, null=True, blank=True, related_name="bookings"
+    )
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bookings",
     )
     booked_at = models.DateTimeField(auto_now_add=True)
 

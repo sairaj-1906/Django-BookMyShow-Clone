@@ -18,10 +18,13 @@ urlpatterns = [
     ),
     path("shows/<int:show_id>/checkout/", views.checkout, name="checkout"),
     path(
-        "shows/<int:show_id>/checkout/confirm/",
-        views.confirm_booking,
-        name="confirm_booking",
+        "payments/<int:payment_id>/verify/", views.verify_payment, name="verify_payment"
     ),
+    path(
+        "payments/<int:payment_id>/cancel/", views.cancel_payment, name="cancel_payment"
+    ),
+    path("payments/webhook/razorpay/", views.razorpay_webhook, name="razorpay_webhook"),
+    path("payments/history/", views.payment_history, name="payment_history"),
     path(
         "theater/<int:theater_id>/seats/book/",
         views.book_seats_legacy,
