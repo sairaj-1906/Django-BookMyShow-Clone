@@ -1,4 +1,5 @@
-{% extends "users/basic.html" %} 
+{% extends "users/basic.html" %}
+<!-- -->
 {% block content %}
 
 <div class="container py-5">
@@ -10,8 +11,8 @@
           <div class="mb-3">
             <i class="fas fa-user-circle fa-6x text-primary"></i>
           </div>
-          <h3 class="card-title mb-0">{{ user.username }}</h3>
-          <p class="text-muted mb-3">{{ user.email }}</p>
+          <h3 class="card-title mb-0">{{user.username}}</h3>
+          <p class="text-muted mb-3">{{user.email}}</p>
           <div class="d-flex justify-content-center">
             <a href="#" class="btn btn-outline-primary me-2"
               ><i class="fas fa-envelope me-2"></i>Message</a
@@ -36,19 +37,19 @@
         </div>
         <div class="card-body">
           <form method="POST">
-            {% csrf_token %} {% for field in u_form %}
+            <!-- {% csrf_token %} --> <!-- {% for field in u_form %} -->
             <div class="mb-3">
-              <label for="{{ field.id_for_label }}" class="form-label">
+              <label for="{{field.id_for_label}}" class="form-label">
                 <i
                   class="fas fa-{% if field.name == 'username' %}user{% elif field.name == 'email' %}envelope{% else %}info-circle{% endif %} me-2"
                 ></i>
-                {{ field.label }}
+                {{field.label}}
               </label>
-              {{ field.errors }} {{ field }} {% if field.help_text %}
-              <small class="form-text text-muted">{{ field.help_text }}</small>
-              {% endif %}
+              {{field.errors}} {{field}} <!-- {% if field.help_text %} -->
+              <small class="form-text text-muted">{{field.help_text}}</small>
+              <!-- {% endif %} -->
             </div>
-            {% endfor %}
+            <!-- {% endfor %} -->
             <button class="btn btn-primary w-100" type="submit">
               <i class="fas fa-save me-2"></i> Update Profile
             </button>
@@ -67,37 +68,34 @@
           </a>
         </div>
         <div class="card-body">
-          {% if bookings %}
+          <!-- {% if bookings %} -->
           <div class="row row-cols-1 row-cols-md-2 g-4">
-            {% for booking in bookings %}
+            <!-- {% for booking in bookings %} -->
             <div class="col">
               <div class="card h-100 border-0 shadow-sm">
                 <div class="card-body">
-                  <h5 class="card-title">{{ booking.movie.name }}</h5>
+                  <h5 class="card-title">{{booking.movie.name}}</h5>
                   <p class="card-text">
-                    <i class="fas fa-film me-2 text-muted"> </i> {{
-                    booking.theater.name }}<br />
-                    <i class="fas fa-chair me-2 text-muted"> </i> Seat: {{
-                    booking.seat.seat_number }}<br />
-                    <i class="far fa-clock me-2 text-muted"> </i> {{
-                    booking.booked_at|date:"F d, Y H:i" }}
+                    <i class="fas fa-film me-2 text-muted"> </i> {{booking.theater.name}}<br />
+                    <i class="fas fa-chair me-2 text-muted"> </i> Seat: {{booking.seat.seat_number}}<br />
+                    <i class="far fa-clock me-2 text-muted"> </i> {{booking.booked_at|date:"F d, Y H:i"}}
                   </p>
-                  {% if booking.payment %}
-                  <span class="badge bg-success">Paid — ₹{{ booking.payment.amount }}</span>
-                  {% endif %}
+                  <!-- {% if booking.payment %} -->
+                  <span class="badge bg-success">Paid — ₹{{booking.payment.amount}}</span>
+                  <!-- {% endif %} -->
                 </div>
               </div>
             </div>
-            {% endfor %}
+            <!-- {% endfor %} -->
           </div>
-          {% else %}
+          <!-- {% else %} -->
           <div class="text-center py-5">
             <i class="fas fa-ticket-alt fa-4x text-muted mb-3"></i>
             <p class="lead mb-0">
               No bookings yet. Time to plan your next movie night!
             </p>
           </div>
-          {% endif %}
+          <!-- {% endif %} -->
         </div>
       </div>
     </div>
@@ -162,8 +160,8 @@
 <!-- <div class="container mt-4">
     <h2>Profile</h2>
     <form method="POST">
-      {% csrf_token %}
-      {{ u_form.as_p }}
+      <!-- {% csrf_token %} -->
+      {{u_form.as_p}}
       <div>
         <button class="btn btn-primary mt-2" type="submit">Update Profile</button>
       </div>
@@ -173,7 +171,7 @@
 
     <h2>Booking</h2>
     <ul>
-      {% for booking in bookings %}
+      <!-- {% for booking in bookings %} -->
       <li>
         movie:{{booking.movie.name}}<br>
         theater:{{booking.theater.name}}<br>
@@ -181,9 +179,11 @@
         bookedat:{{booking.booked_at}}
 
       </li>
-      {% empty %}
+      <!-- {% empty %} -->
       <li>no bookings yet</li>
-      {% endfor %}
+      <!-- {% endfor %} -->
     </ul>
   </div> -->
+
 {% endblock %}
+

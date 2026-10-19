@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 
 from django.conf import settings
@@ -21,6 +22,9 @@ from .payments import (
     verify_payment_signature,
     verify_webhook_signature,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _run_atomic_with_retry(fn, attempts=5, base_delay=0.05):
@@ -418,12 +422,26 @@ def checkout(request, show_id):
     if existing and sorted(s.id for s in existing.seats.all()) == seat_ids:
         payment = existing
     else:
-        order = create_order(
-            amount_in_paise=int(total_price * 100),
-            currency="INR",
-            receipt=f"show{show.id}-user{request.user.id}-{int(timezone.now().timestamp())}",
-            notes={"show_id": str(show.id), "user_id": str(request.user.id)},
-        )
+        if not (settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET):
+            messages.error(
+                request,
+                "Online payments are not configured yet (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are not set).",
+            )
+            return redirect("book_seats", show_id=show.id)
+        try:
+            order = create_order(
+                amount_in_paise=int(total_price * 100),
+                currency="INR",
+                receipt=f"show{show.id}-user{request.user.id}-{int(timezone.now().timestamp())}",
+                notes={"show_id": str(show.id), "user_id": str(request.user.id)},
+            )
+        except Exception:  # Razorpay rejected the request (bad keys) or could not be reached
+            logger.exception("Razorpay order creation failed for show %s", show.id)
+            messages.error(
+                request,
+                "We couldn't start the payment right now. Please try again in a moment.",
+            )
+            return redirect("book_seats", show_id=show.id)
         payment = Payment.objects.create(
             user=request.user,
             show=show,
@@ -502,6 +520,7 @@ def _finalize_booking_for_payment(
         SeatHold.objects.filter(seat__in=seats, user=payment.user).delete()
 
         payment.status = Payment.STATUS_SUCCESS
+        payment.paid_at = timezone.now()
         if failed:
             payment.failure_reason = (
                 f"Seats already taken at confirmation time: {', '.join(failed)}"
@@ -512,6 +531,7 @@ def _finalize_booking_for_payment(
                 "failure_reason",
                 "razorpay_payment_id",
                 "razorpay_signature",
+                "paid_at",
                 "updated_at",
             ]
         )

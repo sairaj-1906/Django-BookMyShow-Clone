@@ -1,0 +1,210 @@
+{% extends "admin/base_site.html" %}
+<!-- -->
+{% block extrastyle %}
+<!-- -->
+{{block.super}}
+
+<style>
+  .dash { max-width: 1400px; }
+  .dash h2 { margin: 28px 0 10px; font-size: 16px; text-transform: none; }
+  .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 14px 16px;
+             background: var(--darkened-bg); border: 1px solid var(--hairline-color); border-radius: 6px; }
+  .filters label { display: block; font-size: 11px; font-weight: 600; margin-bottom: 3px; }
+  .filters .presets a { display: inline-block; padding: 4px 9px; margin: 0 4px 4px 0; border: 1px solid var(--hairline-color);
+                        border-radius: 12px; font-size: 12px; background: var(--body-bg); }
+  .grid { display: grid; gap: 14px; }
+  .grid.kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .grid.two { grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); }
+  .card { background: var(--body-bg); border: 1px solid var(--hairline-color); border-radius: 8px; padding: 14px 16px; }
+  .card .label { font-size: 12px; color: var(--body-quiet-color); }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 4px; color: var(--body-fg); }
+  .card .sub { font-size: 11px; color: var(--body-quiet-color); margin-top: 2px; }
+  .card h3 { margin: 0 0 8px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .card h3 a { font-size: 11px; font-weight: 400; }
+  .chartbox { position: relative; height: 280px; }
+  .dash table { width: 100%; }
+  .bar { background: var(--hairline-color); border-radius: 3px; height: 8px; min-width: 90px; }
+  .bar > span { display: block; height: 8px; border-radius: 3px; background: var(--button-bg); }
+  .export a { margin-right: 6px; }
+  .errorlist { color: var(--error-fg); margin: 0 0 8px; padding: 0; list-style: none; }
+  .muted { color: var(--body-quiet-color); font-size: 12px; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+
+{% endblock %}
+<!-- -->
+{% block breadcrumbs %}
+
+<div class="breadcrumbs"><a href="{% url 'admin:index' %}">Home</a> &rsaquo; Analytics dashboard</div>
+
+{% endblock %}
+<!-- -->
+{% block content %}
+
+<div class="dash">
+  <form method="get" class="filters" id="filter-form">
+    {{form.non_field_errors}}
+    <div><label for="id_start">From</label>{{form.start}}{{form.start.errors}}</div>
+    <div><label for="id_end">To</label>{{form.end}}{{form.end.errors}}</div>
+    <div><label for="id_granularity">Group trends by</label>{{form.granularity}}</div>
+    <div><input type="submit" class="default" value="Apply"></div>
+    <div class="presets">
+      <!-- {% for label, s, e in presets %} --><a href="?start={{s|date:'Y-m-d'}}&end={{e|date:'Y-m-d'}}">{{label}}</a><!-- {% endfor %} -->
+    </div>
+  </form>
+  <p class="muted">
+    Showing {{data.filters.start_date|date:"Y-m-d"}} &ndash; {{data.filters.end_date|date:"Y-m-d"}}
+    ({{range_days}} day{{range_days|pluralize}}), trends grouped by <b>{{data.filters.granularity}}</b>.
+    All amounts in INR; days/hours use the {{tz_name}} timezone.
+    Computed live in <b>{{elapsed_ms}} ms</b>.
+  </p>
+
+  <div class="export">
+    <b>Export CSV:</b>
+    <a class="button" href="{% url 'dashboard_export' 'all' %}?{{query_string}}">Full report</a>
+    <!-- {% for key, title in report_names.items %} --><a href="{% url 'dashboard_export' key %}?{{query_string}}">{{title}}</a><!-- {% endfor %} -->
+    <a href="{% url 'dashboard_export' 'bookings_detail' %}?{{query_string}}">All bookings (detailed rows)</a>
+  </div>
+
+  <h2>Revenue &mdash; calendar periods</h2>
+  <div class="grid kpis">
+    <div class="card"><div class="label">Today</div><div class="value">&#8377;{{data.revenue_summary.today|floatformat:"0g"}}</div></div>
+    <div class="card"><div class="label">This week (Mon&ndash;now)</div><div class="value">&#8377;{{data.revenue_summary.week|floatformat:"0g"}}</div></div>
+    <div class="card"><div class="label">This month</div><div class="value">&#8377;{{data.revenue_summary.month|floatformat:"0g"}}</div></div>
+    <div class="card"><div class="label">This year</div><div class="value">&#8377;{{data.revenue_summary.year|floatformat:"0g"}}</div></div>
+  </div>
+
+  <h2>Selected range</h2>
+  <div class="grid kpis">
+    <div class="card"><div class="label">Gross revenue</div><div class="value">&#8377;{{data.kpis.revenue|floatformat:"0g"}}</div>
+      <div class="sub">{{data.kpis.orders|floatformat:"0g"}} paid orders</div></div>
+    <div class="card"><div class="label">Net revenue (after refunds)</div><div class="value">&#8377;{{data.kpis.net_revenue|floatformat:"0g"}}</div>
+      <div class="sub">&#8377;{{data.cancellations.refund_processed_amount|floatformat:"0g"}} refunded</div></div>
+    <div class="card"><div class="label">Average order value</div><div class="value">&#8377;{{data.kpis.avg_order_value|floatformat:"0g"}}</div></div>
+    <div class="card"><div class="label">Tickets booked</div><div class="value">{{data.kpis.bookings|floatformat:"0g"}}</div></div>
+    <div class="card"><div class="label">Seat occupancy</div><div class="value">{{data.kpis.occupancy}}%</div>
+      <div class="sub">shows screening in range</div></div>
+    <div class="card"><div class="label">Peak booking hour</div><div class="value"><!-- {% if peak_hour and peak_hour.bookings %} -->{{peak_hour.label}}<!-- {% else %} -->&ndash;<!-- {% endif %} --></div>
+      <div class="sub"><!-- {% if peak_hour %} -->{{peak_hour.bookings|floatformat:"0g"}} bookings<!-- {% endif %} --></div></div>
+    <div class="card"><div class="label">New users</div><div class="value">{{data.kpis.new_users|floatformat:"0g"}}</div>
+      <div class="sub">{{data.kpis.total_users|floatformat:"0g"}} total</div></div>
+    <div class="card"><div class="label">Cancellation rate</div><div class="value">{{data.cancellations.cancellation_rate}}%</div>
+      <div class="sub">{{data.cancellations.cancellations|floatformat:"0g"}} cancelled</div></div>
+  </div>
+
+  <h2>Trends</h2>
+  <div class="grid two">
+    <div class="card"><h3>Revenue <a href="{% url 'dashboard_export' 'revenue' %}?{{query_string}}">CSV</a></h3><div class="chartbox"><canvas id="c-revenue"></canvas></div></div>
+    <div class="card"><h3>Bookings <a href="{% url 'dashboard_export' 'bookings' %}?{{query_string}}">CSV</a></h3><div class="chartbox"><canvas id="c-bookings"></canvas></div></div>
+    <div class="card"><h3>Peak booking hours <a href="{% url 'dashboard_export' 'peak_hours' %}?{{query_string}}">CSV</a></h3><div class="chartbox"><canvas id="c-hours"></canvas></div></div>
+    <div class="card"><h3>User growth <a href="{% url 'dashboard_export' 'users' %}?{{query_string}}">CSV</a></h3><div class="chartbox"><canvas id="c-users"></canvas></div></div>
+  </div>
+
+  <h2>Theaters &amp; movies</h2>
+  <div class="grid two">
+    <div class="card">
+      <h3>Occupancy by theater <a href="{% url 'dashboard_export' 'occupancy' %}?{{query_string}}">CSV</a></h3>
+      <table>
+        <thead><tr><th>Theater</th><th>City</th><th class="num">Shows</th><th class="num">Seats sold</th><th>Occupancy</th></tr></thead>
+        <tbody>
+        <!-- {% for o in data.occupancy %} -->
+          <tr><td>{{o.theater}}</td><td>{{o.city}}</td><td class="num">{{o.shows}}</td>
+              <td class="num">{{o.seats_booked|floatformat:"0g"}} / {{o.seats_total|floatformat:"0g"}}</td>
+              <td><div class="bar" title="{{o.occupancy}}%"><span style="width: {{o.occupancy}}%"></span></div> {{o.occupancy}}%</td></tr>
+        <!-- {% empty %} --><tr><td colspan="5" class="muted">No shows in this range.</td></tr><!-- {% endfor %} -->
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <div class="card">
+        <h3>Most booked movies <a href="{% url 'dashboard_export' 'movies' %}?{{query_string}}">CSV</a></h3>
+        <table>
+          <thead><tr><th>#</th><th>Movie</th><th class="num">Bookings</th><th class="num">Revenue</th></tr></thead>
+          <tbody>
+          <!-- {% for m in data.top_movies %} -->
+            <tr><td>{{forloop.counter}}</td><td>{{m.movie}}</td><td class="num">{{m.bookings|floatformat:"0g"}}</td><td class="num">&#8377;{{m.revenue|floatformat:"0g"}}</td></tr>
+          <!-- {% empty %} --><tr><td colspan="4" class="muted">No bookings in this range.</td></tr><!-- {% endfor %} -->
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h3>Top-performing theaters (by revenue) <a href="{% url 'dashboard_export' 'theaters' %}?{{query_string}}">CSV</a></h3>
+        <table>
+          <thead><tr><th>#</th><th>Theater</th><th>City</th><th class="num">Bookings</th><th class="num">Revenue</th></tr></thead>
+          <tbody>
+          <!-- {% for t in data.top_theaters %} -->
+            <tr><td>{{forloop.counter}}</td><td>{{t.theater}}</td><td>{{t.city}}</td><td class="num">{{t.bookings|floatformat:"0g"}}</td><td class="num">&#8377;{{t.revenue|floatformat:"0g"}}</td></tr>
+          <!-- {% empty %} --><tr><td colspan="5" class="muted">No payments in this range.</td></tr><!-- {% endfor %} -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <h2>Payments, cancellations &amp; refunds</h2>
+  <div class="grid two">
+    <div class="card"><h3>Payment outcomes <span class="muted">{{data.cancellations.payment_success_rate}}% success</span></h3>
+      <div class="chartbox"><canvas id="c-payments"></canvas></div></div>
+    <div class="card">
+      <h3>Cancellations &amp; refunds <a href="{% url 'dashboard_export' 'cancellations' %}?{{query_string}}">CSV</a></h3>
+      <!-- {% with c=data.cancellations %} -->
+      <table>
+        <tbody>
+          <tr><td>Cancelled tickets</td><td class="num">{{c.cancellations|floatformat:"0g"}}</td></tr>
+          <tr><td>Cancellation rate</td><td class="num">{{c.cancellation_rate}}%</td></tr>
+          <tr><td>Total refund value</td><td class="num">&#8377;{{c.refund_total|floatformat:"0g"}}</td></tr>
+          <tr><td>Refunds processed</td><td class="num">{{c.refund_processed|floatformat:"0g"}} &middot; &#8377;{{c.refund_processed_amount|floatformat:"0g"}}</td></tr>
+          <tr><td>Refunds pending</td><td class="num">{{c.refund_pending|floatformat:"0g"}} &middot; &#8377;{{c.refund_pending_amount|floatformat:"0g"}}</td></tr>
+          <tr><td>Refunds failed</td><td class="num">{{c.refund_failed|floatformat:"0g"}} &middot; &#8377;{{c.refund_failed_amount|floatformat:"0g"}}</td></tr>
+          <tr><td>Payment attempts</td><td class="num">{{c.payments_total|floatformat:"0g"}}</td></tr>
+          <tr><td>Failed / cancelled payments</td><td class="num">{{c.payments_failed|floatformat:"0g"}} / {{c.payments_cancelled|floatformat:"0g"}}</td></tr>
+        </tbody>
+      </table>
+      <!-- {% endwith %} -->
+    </div>
+  </div>
+
+  <h2>Theater occupancy chart</h2>
+  <div class="card"><div class="chartbox" style="height: 360px"><canvas id="c-occupancy"></canvas></div></div>
+</div>
+
+{{chart|json_script:"chart-data"}}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  if (typeof Chart === 'undefined') return;
+  const d = JSON.parse(document.getElementById('chart-data').textContent);
+  const css = getComputedStyle(document.documentElement);
+  const fg = (css.getPropertyValue('--body-fg') || '#333').trim();
+  const grid = (css.getPropertyValue('--hairline-color') || '#ddd').trim();
+  const blue = '#417690', gold = '#e0a800', green = '#2e9e6b', red = '#c0392b', grey = '#9aa5ad';
+  Chart.defaults.color = fg;
+  Chart.defaults.maintainAspectRatio = false;
+  const scales = (extra) => Object.assign({ x: { grid: { color: grid }, ticks: { maxTicksLimit: 14 } }, y: { grid: { color: grid }, beginAtZero: true } }, extra || {});
+  const inr = (v) => '\u20B9' + Number(v).toLocaleString('en-IN');
+
+  new Chart('c-revenue', { data: { labels: d.revenue.labels, datasets: [
+      { type: 'bar', label: 'Revenue (INR)', data: d.revenue.revenue, backgroundColor: blue, yAxisID: 'y' },
+      { type: 'line', label: 'Paid orders', data: d.revenue.orders, borderColor: gold, backgroundColor: gold, yAxisID: 'y1', tension: .25, pointRadius: 2 } ] },
+    options: { scales: scales({ y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } } }),
+               plugins: { tooltip: { callbacks: { label: (c) => c.dataset.yAxisID === 'y' ? ' ' + inr(c.parsed.y) : ' ' + c.parsed.y + ' orders' } } } } });
+  new Chart('c-bookings', { type: 'line', data: { labels: d.bookings.labels, datasets: [
+      { label: 'Tickets booked', data: d.bookings.values, borderColor: green, backgroundColor: green + '33', fill: true, tension: .25, pointRadius: 2 } ] },
+    options: { scales: scales() } });
+  new Chart('c-hours', { type: 'bar', data: { labels: d.hours.labels, datasets: [
+      { label: 'Bookings', data: d.hours.values, backgroundColor: d.hours.values.map((v) => v === Math.max.apply(null, d.hours.values) ? gold : blue) } ] },
+    options: { scales: scales(), plugins: { legend: { display: false } } } });
+  new Chart('c-users', { data: { labels: d.users.labels, datasets: [
+      { type: 'bar', label: 'New users', data: d.users.new, backgroundColor: blue, yAxisID: 'y' },
+      { type: 'line', label: 'Total users', data: d.users.total, borderColor: green, backgroundColor: green, yAxisID: 'y1', tension: .25, pointRadius: 2 } ] },
+    options: { scales: scales({ y1: { position: 'right', grid: { drawOnChartArea: false } } }) } });
+  new Chart('c-payments', { type: 'doughnut', data: { labels: d.payments.labels, datasets: [
+      { data: d.payments.values, backgroundColor: [green, red, grey] } ] }, options: { plugins: { legend: { position: 'bottom' } } } });
+  new Chart('c-occupancy', { type: 'bar', data: { labels: d.occupancy.labels, datasets: [
+      { label: 'Occupancy %', data: d.occupancy.values, backgroundColor: blue } ] },
+    options: { indexAxis: 'y', scales: { x: { max: 100, beginAtZero: true, grid: { color: grid } }, y: { grid: { display: false } } }, plugins: { legend: { display: false } } } });
+})();
+</script>
+
+{% endblock %}
+

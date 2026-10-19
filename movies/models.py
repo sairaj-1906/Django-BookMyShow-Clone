@@ -272,6 +272,10 @@ class Show(models.Model):
 
     class Meta:
         ordering = ["date_time"]
+        indexes = [
+            # occupancy report: shows screening inside a date range
+            models.Index(fields=["date_time"], name="show_date_time_idx"),
+        ]
 
     def __str__(self):
         return f"{self.movie.name} @ {self.theater.name} on {self.date_time:%d %b, %I:%M %p}"
@@ -390,11 +394,25 @@ class Payment(models.Model):
     )
     failure_reason = models.CharField(max_length=255, blank=True)
 
+    paid_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the payment was confirmed as successful (used for revenue reports).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
+        permissions = [
+            ("view_dashboard", "Can view the admin analytics dashboard and export reports"),
+        ]
+        indexes = [
+            # revenue reports: successful payments inside a date range
+            models.Index(fields=["status", "paid_at"], name="pay_status_paid_idx"),
+            # payment outcome stats: all payments inside a date range
+            models.Index(fields=["created_at"], name="pay_created_idx"),
+        ]
 
     def __str__(self):
         return (
@@ -427,6 +445,12 @@ class Booking(models.Model):
     )
     booked_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        indexes = [
+            # booking trends / peak hours / most-booked movies: bookings inside a date range
+            models.Index(fields=["booked_at"], name="booking_booked_at_idx"),
+        ]
+
     def __str__(self):
         return f"Booking by {self.user.username} for {self.seat.seat_number}"
 
@@ -444,6 +468,45 @@ class Booking(models.Model):
         if when is None:
             return True  # legacy booking with no known showtime — don't block reviewing
         return timezone.now() >= when
+
+
+class Cancellation(models.Model):
+    """A cancelled booking and its refund. The Booking row itself is deleted on cancellation
+    (so the seat becomes bookable again); this row keeps the history for reporting."""
+
+    REFUND_PENDING = "pending"
+    REFUND_PROCESSED = "processed"
+    REFUND_FAILED = "failed"
+    REFUND_STATUS_CHOICES = [
+        (REFUND_PENDING, "Pending"),
+        (REFUND_PROCESSED, "Processed"),
+        (REFUND_FAILED, "Failed"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="cancellations"
+    )
+    show = models.ForeignKey(
+        Show, on_delete=models.SET_NULL, null=True, blank=True, related_name="cancellations"
+    )
+    payment = models.ForeignKey(
+        Payment, on_delete=models.SET_NULL, null=True, blank=True, related_name="cancellations"
+    )
+    seat_number = models.CharField(max_length=10)
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    refund_status = models.CharField(
+        max_length=10, choices=REFUND_STATUS_CHOICES, default=REFUND_PENDING
+    )
+    reason = models.CharField(max_length=255, blank=True)
+    cancelled_at = models.DateTimeField(default=timezone.now)
+    refunded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-cancelled_at"]
+        indexes = [models.Index(fields=["cancelled_at"], name="cancel_at_idx")]
+
+    def __str__(self):
+        return f"Cancellation of seat {self.seat_number} by {self.user.username} ({self.refund_status})"
 
 
 class Review(models.Model):

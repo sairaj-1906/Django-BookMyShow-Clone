@@ -1,7 +1,10 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.db import transaction
+from django.utils import timezone
 
 from .models import (
     Booking,
+    Cancellation,
     CastMember,
     Genre,
     Language,
@@ -117,6 +120,53 @@ class SeatAdmin(admin.ModelAdmin):
 class BookingAdmin(admin.ModelAdmin):
     list_display = ["user", "seat", "movie", "show", "payment", "booked_at"]
     list_filter = ["movie"]
+    actions = ["cancel_and_refund"]
+
+    @admin.action(description="Cancel selected bookings and create refund records")
+    def cancel_and_refund(self, request, queryset):
+        """Free the seat, delete the booking and record a Cancellation (refund pending).
+        Only upcoming shows can be cancelled. The refund itself is then marked processed
+        from the Cancellations admin once the money has actually been returned."""
+        done = skipped = 0
+        with transaction.atomic():
+            for booking in queryset.select_related("show", "payment"):
+                if not booking.show_id or booking.show.has_started:
+                    skipped += 1
+                    continue
+                seat = Seat.objects.select_for_update().get(pk=booking.seat_id)
+                Cancellation.objects.create(
+                    user=booking.user,
+                    show=booking.show,
+                    payment=booking.payment,
+                    seat_number=seat.seat_number,
+                    refund_amount=booking.show.price,
+                    reason="Cancelled by admin",
+                )
+                seat.is_booked = False
+                seat.save(update_fields=["is_booked"])
+                booking.delete()
+                done += 1
+        if done:
+            self.message_user(request, f"{done} booking(s) cancelled; refunds are pending.", messages.SUCCESS)
+        if skipped:
+            self.message_user(
+                request, f"{skipped} booking(s) skipped (show already started or no show linked).", messages.WARNING
+            )
+
+
+@admin.register(Cancellation)
+class CancellationAdmin(admin.ModelAdmin):
+    list_display = ["user", "seat_number", "show", "refund_amount", "refund_status", "cancelled_at", "refunded_at"]
+    list_filter = ["refund_status"]
+    search_fields = ["user__username", "payment__razorpay_payment_id"]
+    actions = ["mark_refund_processed"]
+
+    @admin.action(description="Mark selected pending refunds as processed")
+    def mark_refund_processed(self, request, queryset):
+        n = queryset.filter(refund_status=Cancellation.REFUND_PENDING).update(
+            refund_status=Cancellation.REFUND_PROCESSED, refunded_at=timezone.now()
+        )
+        self.message_user(request, f"{n} refund(s) marked as processed.", messages.SUCCESS)
 
 
 @admin.register(Payment)

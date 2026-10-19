@@ -1,4 +1,7 @@
-{% extends "users/basic.html" %} {% block content %}
+{% extends "users/basic.html" %}
+<!-- -->
+{% block content %}
+
 <style>
   .container {
     padding: 20px;
@@ -64,49 +67,49 @@
 </style>
 
 <div class="container">
-  <div class="movie-title">{{ movie.name }}</div>
+  <div class="movie-title">{{movie.name}}</div>
 
-  {% if shows %} {% regroup shows by theater as theater_shows %} {% for group in
-  theater_shows %}
+  <!-- {% if shows %} --> <!-- {% regroup shows by theater as theater_shows %} --> <!-- {% for group in theater_shows %} -->
   <div class="theatre-info">
     <div>
-      <strong>{{ group.grouper.name }}</strong>
-      {% if group.grouper.city %}
-      <div class="text-muted">{{ group.grouper.city }}</div>
-      {% endif %}
+      <strong>{{group.grouper.name}}</strong>
+      <!-- {% if group.grouper.city %} -->
+      <div class="text-muted">{{group.grouper.city}}</div>
+      <!-- {% endif %} -->
     </div>
   </div>
   <div class="show-times">
-    {% for show in group.list %}
+    <!-- {% for show in group.list %} -->
     <div class="time-box">
       <a href="{% url 'book_seats' show.id %}">
-        {{ show.date_time|date:"d M, g:i A" }}
+        {{show.date_time|date:"d M, g:i A"}}
         <span class="d-block" style="font-size: 12px"
-          >{{ show.get_screen_format_display }}{% if show.language %} &middot;
-          {{ show.language.name }}{% endif %}</span
+          >{{show.get_screen_format_display}}<!-- {% if show.language %} --> &middot;
+          {{show.language.name}}<!-- {% endif %} --></span
         >
       </a>
     </div>
-    {% endfor %}
+    <!-- {% endfor %} -->
   </div>
-  {% endfor %} {% endif %} {% if legacy_theaters %} {% for theater in
-  legacy_theaters %}
+  <!-- {% endfor %} --> <!-- {% endif %} --> <!-- {% if legacy_theaters %} --> <!-- {% for theater in legacy_theaters %} -->
   <div class="theatre-info">
-    <div><strong>{{ theater.name }}</strong></div>
+    <div><strong>{{theater.name}}</strong></div>
   </div>
   <div class="show-times">
     <div class="time-box">
-      <a href="{% url 'book_seats_legacy' theater.id %}">{{ theater.time }}</a>
+      <a href="{% url 'book_seats_legacy' theater.id %}">{{theater.time}}</a>
     </div>
   </div>
-  {% endfor %} {% endif %} {% if not shows and not legacy_theaters %}
+  <!-- {% endfor %} --> <!-- {% endif %} --> <!-- {% if not shows and not legacy_theaters %} -->
   <div class="no-theaters mt-4">
     <p>Sorry, no showtimes are available for this movie at the moment.</p>
   </div>
-  {% endif %}
+  <!-- {% endif %} -->
 
   <div class="non-cancellable mt-4">
     <i class="fas fa-circle text-warning"></i> Non-cancellable
   </div>
 </div>
+
 {% endblock %}
+

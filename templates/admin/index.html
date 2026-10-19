@@ -1,0 +1,12 @@
+{% extends "admin/index.html" %}
+{% block content %}
+{% if perms.movies.view_dashboard %}
+<div class="module" style="margin-bottom:20px">
+  <table><caption>Analytics</caption>
+    <tr><th scope="row"><a href="{% url 'dashboard' %}">Analytics dashboard</a></th>
+        <td>Revenue, bookings, occupancy, peak hours, cancellations, user growth &mdash; with CSV export</td></tr>
+  </table>
+</div>
+{% endif %}
+{{ block.super }}
+{% endblock %}

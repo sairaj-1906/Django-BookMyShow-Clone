@@ -1,0 +1,3 @@
+# Django templates contain {% tags %} and {{ variables }} that must stay on one line;
+# formatters wrap them and break the page. Do not auto-format templates.
+templates/
