@@ -3,12 +3,12 @@ from .forms import UserRegisterForm, UserUpdateForm
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
+from movies.discovery import recommend_for
 from movies.models import Movie, Booking
 
 
 def home(request):
-    movies = Movie.objects.all()
-    return render(request, "home.html", {"movies": movies})
+    return render(request, "home.html", {"recommended": recommend_for(request, limit=4)})
 
 
 def register(request):

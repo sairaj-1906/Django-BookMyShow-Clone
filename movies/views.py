@@ -3,17 +3,20 @@ import logging
 import time
 
 from django.conf import settings
+from django.core.paginator import Paginator
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from . import discovery
 from .forms import ReviewForm, ReviewReportForm
 from .models import Booking, Movie, Payment, Review, Seat, SeatHold, Show, Theater
 from .payments import (
@@ -46,11 +49,39 @@ def _run_atomic_with_retry(fn, attempts=5, base_delay=0.05):
 
 
 def movie_list(request):
-    search_query = request.GET.get("search")
-    movies = Movie.objects.all()
-    if search_query:
-        movies = movies.filter(name__icontains=search_query)
-    return render(request, "movies/movie_list.html", {"movies": movies})
+    """Movie discovery: title search, filters, sorting, live result count and pagination.
+
+    Normal requests render the whole page. The page's JavaScript re-requests the same URL with
+    an `X-Requested-With: XMLHttpRequest` header every time a filter changes and gets back
+    JSON ({count, html, url}) so the result count and grid update without a reload — while the
+    page still works as plain links/forms if JavaScript is off."""
+    form, filters = discovery.parse(request.GET)
+    paginator = Paginator(discovery.discovery_queryset(filters), discovery.PAGE_SIZE)
+    page_obj = paginator.get_page(filters.page)
+
+    context = {
+        "form": form,
+        "filters": filters,
+        "page_obj": page_obj,
+        "total": paginator.count,
+        "chips": discovery.active_chips(filters, form),
+        "page_links": discovery.page_links(page_obj, filters) if paginator.num_pages > 1 else [],
+        "clear_url": reverse("movie_list"),
+    }
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse(
+            {
+                "count": paginator.count,
+                "html": render_to_string("movies/_discover_results.html", context, request=request),
+                "url": discovery.build_url(discovery.canonical_pairs(filters), page_obj.number),
+            }
+        )
+
+    first_page_unfiltered = not filters.active and page_obj.number == 1
+    if first_page_unfiltered:
+        context["recommended"] = discovery.recommend_for(request, limit=8)
+        context["recently_viewed"] = discovery.recently_viewed(request, limit=6)
+    return render(request, "movies/movie_list.html", context)
 
 
 def movie_detail(request, movie_id):
@@ -80,6 +111,8 @@ def movie_detail(request, movie_id):
         can_review = bool(eligible_booking and eligible_booking.has_been_watched())
         if can_review and not user_review:
             review_form = ReviewForm()
+
+    discovery.record_view(request, movie)  # feeds "Recommended for You"
 
     context = {
         "movie": movie,

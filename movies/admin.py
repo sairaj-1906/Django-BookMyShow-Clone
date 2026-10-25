@@ -11,6 +11,7 @@ from .models import (
     Movie,
     MovieCastCredit,
     MoviePoster,
+    MovieView,
     Payment,
     Review,
     ReviewReport,
@@ -248,3 +249,12 @@ class ReviewAdmin(admin.ModelAdmin):
 class ReviewReportAdmin(admin.ModelAdmin):
     list_display = ["review", "reported_by", "reason", "created_at"]
     list_filter = ["reason"]
+
+
+@admin.register(MovieView)
+class MovieViewAdmin(admin.ModelAdmin):
+    """Recently viewed movies per user (drives "Recommended for You")."""
+
+    list_display = ["user", "movie", "viewed_at"]
+    search_fields = ["user__username", "movie__name"]
+    readonly_fields = ["viewed_at"]

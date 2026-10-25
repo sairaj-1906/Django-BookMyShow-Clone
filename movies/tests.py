@@ -308,3 +308,45 @@ class PublicPagesRenderTests(DashboardTestBase):
         self.assertContains(r, "Theater A")
         self.assertNotContains(r, "{{")
         self.assertNotContains(r, "{%")
+
+
+class TemplateExistenceTests(SimpleTestCase):
+    """Every template a view or another template refers to must exist and compile. (A missing
+    payment_history.html once made the Payment History page crash with TemplateDoesNotExist.)"""
+
+    CALL = re.compile(r"""(?:render|render_to_string|get_template)\(\s*(?:request,\s*)?["']([\w/.\-]+\.html)["']""")
+    TAG = re.compile(r"""\{%\s*(?:include|extends)\s+["']([\w/.\-]+\.html)["']""")
+
+    def test_every_referenced_template_exists_and_compiles(self):
+        from django.template.loader import get_template
+
+        root = Path(settings.BASE_DIR)
+        names = set()
+        for path in root.rglob("*.py"):
+            parts = set(path.parts)
+            if parts & {"migrations", "venv", ".venv", "site-packages", "node_modules"}:
+                continue
+            names.update(self.CALL.findall(path.read_text(encoding="utf-8", errors="ignore")))
+        for path in (root / "templates").rglob("*.html"):
+            names.update(self.TAG.findall(path.read_text(encoding="utf-8")))
+        self.assertGreater(len(names), 10)
+        for name in sorted(names):
+            get_template(name)  # raises TemplateDoesNotExist / TemplateSyntaxError
+
+
+class PaymentHistoryPageTests(DashboardTestBase):
+    def test_payment_history_lists_every_status_for_the_logged_in_user(self):
+        self.client.force_login(self.buyer)
+        r = self.client.get(reverse("payment_history"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "o1")  # razorpay order ids from the fixture
+        self.assertContains(r, "Paid")
+        self.assertContains(r, "Failed")
+        self.assertNotContains(r, "{%")
+        self.assertNotContains(r, "{{")
+
+    def test_payment_history_requires_login_and_shows_empty_state(self):
+        self.assertEqual(self.client.get(reverse("payment_history")).status_code, 302)
+        other = User.objects.create_user("nopayments", password="pw")
+        self.client.force_login(other)
+        self.assertContains(self.client.get(reverse("payment_history")), "No payments yet")

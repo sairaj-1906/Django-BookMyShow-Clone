@@ -1,0 +1,61 @@
+{% extends "users/basic.html" %}
+<!-- -->
+{% block content %}
+
+<div class="container py-5">
+  <h2 class="mb-4">Payment &amp; Booking History</h2>
+
+  <!-- {% if payments %} -->
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Movie</th>
+          <th>Show</th>
+          <th>Seats</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th>Transaction ID</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- {% for payment in payments %} -->
+        <tr>
+          <td>{{payment.show.movie.name}}</td>
+          <td>{{payment.show.theater.name}}<br><small class="text-muted">{{payment.show.date_time|date:"d-M-Y"}} {{payment.show.date_time|date:"g:iA"}}</small></td>
+          <td>{{payment.seat_numbers}}</td>
+          <td>&#8377;{{payment.amount}}</td>
+          <td>
+            <!-- {% if payment.status == "success" %} -->
+            <span class="badge badge-success">Paid</span>
+            <!-- {% elif payment.status == "failed" %} -->
+            <span class="badge badge-danger">Failed</span>
+            <!-- {% if payment.failure_reason %} --><br><small class="text-muted">{{payment.failure_reason}}</small><!-- {% endif %} -->
+            <!-- {% elif payment.status == "cancelled" %} -->
+            <span class="badge badge-secondary">Cancelled</span>
+            <!-- {% else %} -->
+            <span class="badge badge-warning">Pending</span>
+            <!-- {% endif %} -->
+          </td>
+          <td>
+            <small class="text-muted">{{payment.razorpay_payment_id|default:"-"}}<br>order: {{payment.razorpay_order_id}}</small>
+          </td>
+          <td>{{payment.created_at|date:"d-M-Y"}} {{payment.created_at|date:"H:i"}}</td>
+        </tr>
+        <!-- {% endfor %} -->
+      </tbody>
+    </table>
+  </div>
+  <!-- {% else %} -->
+  <div class="text-center py-5">
+    <p class="lead">No payments yet.</p>
+    <a href="{% url 'movie_list' %}" class="btn btn-primary">Browse movies</a>
+  </div>
+  <!-- {% endif %} -->
+
+  <a href="{% url 'profile' %}" class="btn btn-outline-secondary mt-3">Back to profile</a>
+</div>
+
+{% endblock %}
+

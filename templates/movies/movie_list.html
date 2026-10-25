@@ -1,125 +1,153 @@
-{% extends "users/basic.html" %} {% block content %}
-<div class="container py-5">
-  <h1 class="text-center mb-5">Movies</h1>
+{% extends "users/basic.html" %}
+<!-- -->
+{% block content %}
 
-  <div class="row justify-content-center mb-5">
-    <div class="col-md-8">
-      <form method="GET" action="{% url 'movie_list' %}" class="search-bar">
-        <div class="input-group">
-          <input
-            class="form-control form-control-lg"
-            name="search"
-            placeholder="Search for Movies, Events, Plays, Sports and Activities"
-            type="text"
-            value="{{ request.GET.search|default_if_none:'' }}"
-            aria-label="Search for movies"
-          />
-          <div class="input-group-append">
-            <button class="btn btn-primary" type="submit">
-              <i class="fas fa-search"></i> Search
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
+<style>
+  .discover { max-width: 1300px; }
+  .filter-box { background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 14px 16px; }
+  .filter-box h6 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 6px; color: #444; }
+  .filter-box h6:first-child { margin-top: 0; }
+  .checks { max-height: 170px; overflow-y: auto; }
+  .checks ul { list-style: none; padding: 0; margin: 0; }
+  .checks label { font-weight: normal; margin: 0 0 3px; cursor: pointer; font-size: 14px; }
+  .checks input { margin-right: 6px; }
+  .movie-card { border: none; border-radius: 8px; overflow: hidden; color: #222; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: transform .2s, box-shadow .2s; }
+  .movie-card:hover { transform: translateY(-4px); box-shadow: 0 8px 18px rgba(0,0,0,.12); color: #222; }
+  .movie-card .card-img-top { height: 270px; object-fit: cover; background: #e9ecef; }
+  .movie-title { font-weight: 600; font-size: 15px; line-height: 1.25; margin-bottom: 3px; }
+  .movie-meta { font-size: 12px; color: #666; }
+  .movie-meta .rating { color: #d98e04; font-weight: 600; margin-right: 8px; }
+  .movie-genres { margin: 4px 0; min-height: 20px; }
+  .movie-genres .badge { font-weight: normal; font-size: 11px; }
+  .movie-price { font-size: 13px; font-weight: 600; color: #198754; }
+  .chip { display: inline-block; background: #e7f1ff; color: #0b5ed7; border-radius: 14px; padding: 2px 10px; margin: 0 6px 6px 0; font-size: 13px; text-decoration: none; }
+  .chip:hover { background: #cfe2ff; text-decoration: none; }
+  #results { transition: opacity .15s; }
+  #results.loading { opacity: .45; }
+  .section-head { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
+  .strip .card-img-top { height: 200px; }
+</style>
 
-  <div class="row" id="movieList">
-    {% for movie in movies %}
-    <div class="col-md-4 mb-4">
-      <div class="card h-100 shadow-sm">
-        <a href="{% url 'movie_detail' movie.id %}">
-          <img
-            src="{{ movie.image.url }}"
-            class="card-img-top"
-            alt="{{ movie.name }}"
-            style="height: 300px; object-fit: cover"
-          />
-        </a>
-        <div class="card-body">
-          <h5 class="card-title">
-            <a
-              href="{% url 'movie_detail' movie.id %}"
-              class="text-decoration-none text-dark"
-              >{{ movie.name }}</a
-            >
-          </h5>
-          <p class="card-text">
-            <i class="fas fa-star text-warning"></i> {{ movie.display_rating }}
-            {% if movie.ratings_count %}<small class="text-muted"
-              >({{ movie.ratings_count }})</small
-            >{% endif %}
-          </p>
-          <p class="card-text">
-            <small class="text-muted">
-              <i class="fas fa-clock"></i> {{ movie.duration_minutes }} min
-              &middot; {{ movie.get_age_certification_display }}
-            </small>
-          </p>
-        </div>
-        <div class="card-footer bg-white border-top-0">
-          <a
-            href="{% url 'movie_detail' movie.id %}"
-            class="btn btn-outline-primary btn-block"
-          >
-            View Details <i class="fas fa-chevron-right ml-2"></i>
-          </a>
+<div class="container-fluid discover py-4">
+  <div class="row justify-content-center mb-4">
+    <div class="col-lg-8">
+      <div class="input-group input-group-lg">
+        {{form.q}}
+        <div class="input-group-append">
+          <button class="btn btn-primary" type="submit" form="filter-form">Search</button>
         </div>
       </div>
     </div>
-    {% empty %}
-    <div class="col-12 text-center">
-      <p class="lead">No movies found. Try a different search term.</p>
+  </div>
+  <!-- {% if recommended %} -->
+  <div class="mb-4">
+    <div class="section-head">{{recommended.title}}</div>
+    <p class="text-muted small mb-2">{{recommended.subtitle}}</p>
+    <div class="row strip">
+      <!-- {% for movie in recommended.movies %} -->
+      {% include "movies/_movie_card.html" %}
+      <!-- {% endfor %} -->
     </div>
-    {% endfor %}
+  </div>
+  <!-- {% endif %} -->
+
+  <!-- {% if recently_viewed %} -->
+  <div class="mb-4">
+    <div class="section-head">Recently viewed</div>
+    <div class="row strip">
+      <!-- {% for movie in recently_viewed %} -->
+      {% include "movies/_movie_card.html" %}
+      <!-- {% endfor %} -->
+    </div>
+  </div>
+  <!-- {% endif %} -->
+
+  <div class="section-head mb-3">Discover movies</div>
+  <div class="row">
+    <aside class="col-lg-3 mb-4">
+      <form id="filter-form" method="get" action="{% url 'movie_list' %}" class="filter-box">
+        <h6>Genre</h6>
+        <div class="checks">{{form.genre}}</div>
+        <h6>Language</h6>
+        <div class="checks">{{form.language}}</div>
+        <h6>City</h6>
+        {{form.city}}
+        <h6>Theater</h6>
+        {{form.theater}}
+        <h6>Show timing</h6>
+        <div class="checks">{{form.timing}}</div>
+        <h6>Show date</h6>
+        {{form.show_date}}
+        <h6>Release Date</h6>
+        <div class="d-flex">
+          <div class="mr-1">{{form.release_from}}</div>
+          <div>{{form.release_to}}</div>
+        </div>
+        <h6>Minimum rating</h6>
+        {{form.min_rating}}
+        <noscript><button type="submit" class="btn btn-primary btn-sm mt-3">Apply filters</button></noscript>
+      </form>
+    </aside>
+
+    <section class="col-lg-9">
+      <div class="d-flex justify-content-end align-items-center mb-2">
+        <label for="id_sort" class="small mb-0 mr-2">Sort by</label>
+        <div>{{form.sort}}</div>
+      </div>
+      <div id="results">
+        {% include "movies/_discover_results.html" %}
+      </div>
+    </section>
   </div>
 </div>
 
-<!-- Bootstrap JS and dependencies -->
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-
-<!-- Font Awesome -->
-<link
-  rel="stylesheet"
-  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
-/>
-
-<style>
-  .card {
-    transition:
-      transform 0.3s ease-in-out,
-      box-shadow 0.3s ease-in-out;
-  }
-  .card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
-  }
-</style>
-
 <script>
-  $(document).ready(function () {
-    $(".card").hover(
-      function () {
-        $(this).addClass("shadow");
-      },
-      function () {
-        $(this).removeClass("shadow");
-      },
-    );
+(function () {
+  var form = document.getElementById('filter-form');
+  var results = document.getElementById('results');
+  var timer = null, controller = null;
 
-    $('input[name="search"]').on("input", function () {
-      var searchTerm = $(this).val().toLowerCase();
-      $("#movieList .col-md-4").each(function () {
-        var movieTitle = $(this).find(".card-title").text().toLowerCase();
-        if (movieTitle.includes(searchTerm)) {
-          $(this).show();
-        } else {
-          $(this).hide();
-        }
-      });
+  function currentQuery() {
+    var p = new URLSearchParams();
+    new FormData(form).forEach(function (v, k) { if (v !== '') p.append(k, v); });
+    return p.toString();
+  }
+  function load(qs, scrollTop) {
+    if (controller) controller.abort();
+    controller = new AbortController();
+    results.classList.add('loading');
+    fetch(form.action + (qs ? '?' + qs : ''), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      signal: controller.signal
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      results.innerHTML = data.html;
+      history.pushState({}, '', data.url);
+      results.classList.remove('loading');
+      if (scrollTop) results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }).catch(function (e) {
+      if (e.name !== 'AbortError') window.location = form.action + (qs ? '?' + qs : '');
     });
+  }
+  document.addEventListener('change', function (e) {
+    if (e.target.form === form) load(currentQuery(), false);
   });
+  document.addEventListener('input', function (e) {
+    if (e.target.form === form && e.target.type === 'search') {
+      clearTimeout(timer);
+      timer = setTimeout(function () { load(currentQuery(), false); }, 350);
+    }
+  });
+  form.addEventListener('submit', function (e) { e.preventDefault(); load(currentQuery(), false); });
+  results.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-ajax]');
+    if (!a) return;
+    e.preventDefault();
+    var qs = a.search ? a.search.slice(1) : '';
+    load(qs, true);
+  });
+  window.addEventListener('popstate', function () { window.location.reload(); });
+})();
 </script>
+
 {% endblock %}
+

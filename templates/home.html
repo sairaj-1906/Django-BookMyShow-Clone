@@ -121,10 +121,11 @@
     </div>
     {% endif %}
   
-    <div class="section-title">Recommended Movies</div>
+    <div class="section-title">{{recommended.title}}</div>
+    <p class="text-muted small" style="margin-top:-12px">{{recommended.subtitle}} &middot; <a href="{% url 'movie_list' %}">Browse &amp; filter all movies</a></p>
     <div class="row">
-        {% if movies %}
-      {% for movie in movies|slice:":4" %}
+        {% if recommended.movies %}
+      {% for movie in recommended.movies %}
       <div class="col-md-3 col-sm-6">
         <!-- Wrap the card in an anchor to make the entire card clickable -->
         <a href="{% url 'movie_detail' movie.id %}" class="text-decoration-none">

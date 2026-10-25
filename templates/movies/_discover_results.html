@@ -1,0 +1,32 @@
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+  <h5 class="mb-1" id="result-count"><span class="count-number">{{total}}</span> movie{{total|pluralize}} found</h5>
+  <!-- {% if chips %} --><a href="{{clear_url}}" class="small">Clear all filters</a><!-- {% endif %} -->
+</div>
+<!-- {% if chips %} -->
+<div class="chips mb-3">
+  <!-- {% for chip in chips %} --><a href="{{chip.url}}" data-ajax class="chip">{{chip.label}} &times;</a><!-- {% endfor %} -->
+</div>
+<!-- {% endif %} -->
+<div class="row">
+  <!-- {% for movie in page_obj %} -->
+  {% include "movies/_movie_card.html" %}
+  <!-- {% empty %} -->
+  <div class="col-12 text-center text-muted py-5">
+    <p class="lead mb-1">No movies match these filters.</p>
+    <p>Try removing a filter or searching for a different title.</p>
+  </div>
+  <!-- {% endfor %} -->
+</div>
+<!-- {% if page_links %} -->
+<nav aria-label="Result pages">
+  <ul class="pagination justify-content-center flex-wrap">
+    <!-- {% if page_obj.has_previous %} --><li class="page-item"><a class="page-link" data-ajax href="{{page_links.0.url}}" rel="first">&laquo;</a></li><!-- {% endif %} -->
+    <!-- {% for link in page_links %} -->
+      <!-- {% if link.ellipsis %} --><li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+      <!-- {% elif link.current %} --><li class="page-item active"><span class="page-link">{{link.number}}</span></li>
+      <!-- {% else %} --><li class="page-item"><a class="page-link" data-ajax href="{{link.url}}">{{link.number}}</a></li><!-- {% endif %} -->
+    <!-- {% endfor %} -->
+  </ul>
+  <p class="text-center text-muted small">Page {{page_obj.number}} of {{page_obj.paginator.num_pages}}</p>
+</nav>
+<!-- {% endif %} -->

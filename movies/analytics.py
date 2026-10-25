@@ -12,6 +12,7 @@ Design rules (so it stays fast with 100k+ bookings):
   * Each query is shaped to match an index defined in movies/models.py.
 """
 from dataclasses import dataclass
+from types import SimpleNamespace
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -75,6 +76,14 @@ def _bucket(field, f):
     if f.granularity == "month":
         return Func(Value("%Y-%m-01"), col, shift, function="strftime", output_field=DateField())
     return Func(Value("%Y-01-01"), col, shift, function="strftime", output_field=DateField())
+
+
+def local_hour(field, start, end):
+    """Hour of day (0-23) in the dashboard timezone for a UTC timestamp column. `start`/`end`
+    bound the timestamps being looked at so the SQLite fast path can check the UTC offset is
+    constant over that span. Used by the dashboard (peak hours) and movie discovery (show
+    timings)."""
+    return _hour(field, SimpleNamespace(start=start, end=end))
 
 
 def _hour(field, f):

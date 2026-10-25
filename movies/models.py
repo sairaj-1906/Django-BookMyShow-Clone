@@ -131,6 +131,10 @@ class Movie(models.Model):
 
     class Meta:
         ordering = ["-release_date", "name"]
+        indexes = [
+            # discovery page: "newest first" / release-date range filter
+            models.Index(fields=["release_date"], name="movie_release_idx"),
+        ]
 
     def __str__(self):
         return self.name
@@ -275,6 +279,8 @@ class Show(models.Model):
         indexes = [
             # occupancy report: shows screening inside a date range
             models.Index(fields=["date_time"], name="show_date_time_idx"),
+            # discovery page: "does this movie have an upcoming show?" / cheapest upcoming price
+            models.Index(fields=["movie", "date_time"], name="show_movie_dt_idx"),
         ]
 
     def __str__(self):
@@ -449,6 +455,8 @@ class Booking(models.Model):
         indexes = [
             # booking trends / peak hours / most-booked movies: bookings inside a date range
             models.Index(fields=["booked_at"], name="booking_booked_at_idx"),
+            # discovery page: bookings per movie in the last N days (popularity)
+            models.Index(fields=["movie", "booked_at"], name="booking_movie_at_idx"),
         ]
 
     def __str__(self):
@@ -468,6 +476,26 @@ class Booking(models.Model):
         if when is None:
             return True  # legacy booking with no known showtime — don't block reviewing
         return timezone.now() >= when
+
+
+class MovieView(models.Model):
+    """Which movies a logged-in user looked at recently (one row per user+movie; the
+    timestamp is refreshed on every visit). Feeds "Recommended for You"."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="movie_views"
+    )
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="views")
+    viewed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "movie"], name="unique_user_movie_view")
+        ]
+        indexes = [models.Index(fields=["user", "-viewed_at"], name="movieview_user_recent_idx")]
+
+    def __str__(self):
+        return f"{self.user.username} viewed {self.movie.name}"
 
 
 class Cancellation(models.Model):

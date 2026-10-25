@@ -1,0 +1,14 @@
+<div class="col-6 col-md-4 col-xl-3 mb-4">
+  <a href="{% url 'movie_detail' movie.id %}" class="card movie-card h-100 text-decoration-none">
+    <img src="{{movie.image.url}}" class="card-img-top" alt="{{movie.name}}" loading="lazy">
+    <div class="card-body p-2">
+      <div class="movie-title">{{movie.name}}</div>
+      <div class="movie-meta">
+        <!-- {% if movie.effective_rating %} --><span class="rating">&#9733; {{movie.effective_rating|floatformat:1}}</span><!-- {% endif %} -->
+        <span class="cert">{{movie.get_age_certification_display|slice:":2"}}</span>
+      </div>
+      <div class="movie-genres"><!-- {% for g in movie.genres.all|slice:":2" %} --><span class="badge badge-light">{{g.name}}</span> <!-- {% endfor %} --></div>
+      <div class="movie-price"><!-- {% if movie.from_price %} -->From &#8377;{{movie.from_price|floatformat:"0"}}<!-- {% else %} --><span class="text-muted">No upcoming shows</span><!-- {% endif %} --></div>
+    </div>
+  </a>
+</div>
