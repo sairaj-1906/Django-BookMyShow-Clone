@@ -1,0 +1,27 @@
+{% extends "users/basic.html" %}
+{% block content %}
+<main class="container py-5">
+  {% if valid %}
+  <section class="card mx-auto shadow-sm" style="max-width: 620px">
+    <div class="card-body text-center p-5">
+      <div class="display-5 text-success mb-3">✓</div>
+      <h1 class="h3">Ticket verified</h1>
+      <p class="text-muted">This is a valid, paid booking.</p>
+      <hr />
+      <h2 class="h4">{{ payment.show.movie.name }}</h2>
+      <p class="mb-1">{{ payment.show.theater.name }} — {{ payment.show.screen_name }}</p>
+      <p class="mb-1">{{ show_time_ist|date:"D, d M Y · g:i A" }} IST</p>
+      <p class="mb-1">Seats: {% for booking in payment.bookings.all %}{{ booking.seat.seat_number }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+      <p class="small text-muted mb-0">Booking ID: BMS-{{ payment.pk|stringformat:"08d" }}</p>
+    </div>
+  </section>
+  {% else %}
+  <section class="card mx-auto shadow-sm" style="max-width: 620px">
+    <div class="card-body text-center p-5">
+      <h1 class="h3 text-danger">Ticket could not be verified</h1>
+      <p class="text-muted mb-0">This ticket code is invalid. Please check your booking history.</p>
+    </div>
+  </section>
+  {% endif %}
+</main>
+{% endblock %}

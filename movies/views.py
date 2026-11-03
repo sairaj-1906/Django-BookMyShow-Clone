@@ -1,6 +1,8 @@
 import json
 import logging
+import math
 import time
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.paginator import Paginator
@@ -16,6 +18,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from .catalog_integrations import CatalogIntegrationError, find_nearby_theaters
 from . import discovery
 from .forms import ReviewForm, ReviewReportForm
 from .models import Booking, Movie, Payment, Review, Seat, SeatHold, Show, Theater
@@ -25,9 +28,45 @@ from .payments import (
     verify_payment_signature,
     verify_webhook_signature,
 )
+from .showtime_providers import (
+    get_showtime_provider,
+    parse_provider_date,
+    validate_provider_showtimes,
+)
+from .tickets import build_ticket_pdf, is_valid_ticket_token
+from .tasks import send_booking_ticket_email
 
 
 logger = logging.getLogger(__name__)
+
+
+def _coordinates_from_query(request):
+    raw_latitude = request.GET.get("lat", "")
+    raw_longitude = request.GET.get("lng", "")
+    if not raw_latitude and not raw_longitude:
+        return None
+    try:
+        latitude, longitude = float(raw_latitude), float(raw_longitude)
+    except ValueError:
+        return None
+    if (
+        not math.isfinite(latitude)
+        or not math.isfinite(longitude)
+        or not -90 <= latitude <= 90
+        or not -180 <= longitude <= 180
+    ):
+        return None
+    return latitude, longitude
+
+
+def _queue_ticket_email(payment_id):
+    try:
+        send_booking_ticket_email.delay(payment_id)
+    except Exception:
+        logger.exception(
+            "Could not queue ticket email for payment %s; the booking remains confirmed",
+            payment_id,
+        )
 
 
 def _run_atomic_with_retry(fn, attempts=5, base_delay=0.05):
@@ -214,10 +253,75 @@ def show_list(request, movie_id):
     )
     # Backward compatibility: surface any legacy Theater rows that were never migrated to Show.
     legacy_theaters = Theater.objects.filter(movie=movie, time__isnull=False)
+    provider_showtimes = []
+    provider_error = ""
+    provider_configured = bool(settings.SHOWTIME_PROVIDER)
+    coordinates = _coordinates_from_query(request)
+    if provider_configured and coordinates:
+        try:
+            provider = get_showtime_provider()
+            show_date = parse_provider_date(request.GET.get("show_date"))
+            provider_showtimes = validate_provider_showtimes(
+                provider.search_showtimes(
+                    movie=movie,
+                    latitude=coordinates[0],
+                    longitude=coordinates[1],
+                    show_date=show_date,
+                )
+            )
+            provider_showtimes = [
+                {
+                    "offer": offer,
+                    "starts_at_ist": timezone.localtime(
+                        offer.starts_at, ZoneInfo("Asia/Kolkata")
+                    ).strftime("%a, %d %b · %I:%M %p IST"),
+                }
+                for offer in provider_showtimes
+            ]
+        except Exception:
+            logger.exception("Configured showtime provider failed for movie %s", movie.pk)
+            provider_error = "Live provider showtimes are temporarily unavailable."
+    elif provider_configured and request.GET.get("lat"):
+        provider_error = "Please allow location access to find live showtimes."
+
     return render(
         request,
         "movies/theater_list.html",
-        {"movie": movie, "shows": shows, "legacy_theaters": legacy_theaters},
+        {
+            "movie": movie,
+            "shows": shows,
+            "legacy_theaters": legacy_theaters,
+            "provider_showtimes": provider_showtimes,
+            "provider_error": provider_error,
+            "provider_configured": provider_configured,
+        },
+    )
+
+
+def nearby_theaters(request):
+    places = []
+    error = ""
+    has_location = bool(request.GET.get("lat") or request.GET.get("lng"))
+    coordinates = _coordinates_from_query(request)
+
+    if has_location and coordinates is None:
+        error = "A valid latitude and longitude are required."
+    elif coordinates:
+        try:
+            places = find_nearby_theaters(*coordinates)
+        except CatalogIntegrationError:
+            logger.exception("Google Places nearby cinema search failed")
+            error = "Nearby cinema discovery is temporarily unavailable."
+
+    return render(
+        request,
+        "movies/nearby_theaters.html",
+        {
+            "places": places,
+            "error": error,
+            "has_location": has_location,
+            "configured": bool(settings.GOOGLE_PLACES_API_KEY),
+        },
     )
 
 
@@ -569,6 +673,9 @@ def _finalize_booking_for_payment(
             ]
         )
 
+        if created_bookings:
+            transaction.on_commit(lambda: _queue_ticket_email(payment.pk))
+
         if failed and created_bookings:
             outcome["result"] = "partial_failure"
         elif failed:
@@ -744,6 +851,58 @@ def payment_history(request):
         .order_by("-created_at")
     )
     return render(request, "movies/payment_history.html", {"payments": payments})
+
+
+@login_required(login_url="/login/")
+def download_ticket(request, payment_id):
+    payment = get_object_or_404(
+        Payment.objects.select_related(
+            "user", "show__movie", "show__theater", "show__language"
+        )
+        .prefetch_related("bookings__seat")
+        .filter(bookings__isnull=False)
+        .distinct(),
+        id=payment_id,
+        user=request.user,
+        status=Payment.STATUS_SUCCESS,
+    )
+    response = HttpResponse(build_ticket_pdf(payment), content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'attachment; filename="booking-{payment.id}-ticket.pdf"'
+    )
+    return response
+
+
+def verify_ticket(request, payment_id):
+    token = request.GET.get("token", "")
+    payment = get_object_or_404(
+        Payment.objects.select_related(
+            "show__movie", "show__theater", "show__language"
+        )
+        .prefetch_related("bookings__seat")
+        .filter(bookings__isnull=False)
+        .distinct(),
+        id=payment_id,
+        status=Payment.STATUS_SUCCESS,
+    )
+    if not is_valid_ticket_token(payment, token):
+        return render(
+            request,
+            "movies/ticket_verification.html",
+            {"valid": False},
+            status=404,
+        )
+    return render(
+        request,
+        "movies/ticket_verification.html",
+        {
+            "valid": True,
+            "payment": payment,
+            "show_time_ist": timezone.localtime(
+                payment.show.date_time, ZoneInfo("Asia/Kolkata")
+            ),
+        },
+    )
 
 
 @login_required(login_url="/login/")

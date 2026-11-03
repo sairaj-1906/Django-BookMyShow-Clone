@@ -68,6 +68,36 @@
 
 <div class="container">
   <div class="movie-title">{{movie.name}}</div>
+  <div class="mb-3">
+    <a class="btn btn-outline-secondary" href="{% url 'nearby_theaters' %}">Discover nearby cinemas</a>
+  </div>
+
+  {% if provider_configured %}
+  <form id="provider-location-form" method="get" class="card card-body mb-4">
+    <p class="mb-2">Search authorized provider showtimes near you.</p>
+    <input type="hidden" name="lat" id="provider-latitude">
+    <input type="hidden" name="lng" id="provider-longitude">
+    <div><button type="button" class="btn btn-outline-primary" id="provider-location-button">Find live showtimes near me</button></div>
+  </form>
+  {% endif %}
+
+  {% if provider_error %}<div class="alert alert-warning">{{ provider_error }}</div>{% endif %}
+  {% if provider_showtimes %}
+  <h2 class="h4">Live showtimes from booking partner</h2>
+  {% for result in provider_showtimes %}
+  {% with offer=result.offer %}
+  <div class="theatre-info">
+    <div>
+      <strong>{{ offer.cinema_name }}</strong>
+      {% if offer.address %}<div class="text-muted">{{ offer.address }}</div>{% endif %}
+      <div>{{ result.starts_at_ist }} · {{ offer.language }} · {{ offer.screen_format }}</div>
+      {% if offer.price %}<div>From ₹{{ offer.price }}</div>{% endif %}
+    </div>
+    <a class="btn btn-primary" href="{{ offer.booking_url }}" target="_blank" rel="noopener noreferrer">Book with {{ offer.provider }}</a>
+  </div>
+  {% endwith %}
+  {% endfor %}
+  {% endif %}
 
   <!-- {% if shows %} --> <!-- {% regroup shows by theater as theater_shows %} --> <!-- {% for group in theater_shows %} -->
   <div class="theatre-info">
@@ -111,5 +141,22 @@
   </div>
 </div>
 
-{% endblock %}
+{% if provider_configured %}
+<script>
+  document.getElementById("provider-location-button").addEventListener("click", function () {
+    if (!navigator.geolocation) {
+      window.alert("Location is unavailable in this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(function (position) {
+      document.getElementById("provider-latitude").value = position.coords.latitude;
+      document.getElementById("provider-longitude").value = position.coords.longitude;
+      document.getElementById("provider-location-form").requestSubmit();
+    }, function () {
+      window.alert("Location permission is needed to search nearby showtimes.");
+    });
+  });
+</script>
+{% endif %}
 
+{% endblock %}

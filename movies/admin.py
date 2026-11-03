@@ -66,7 +66,7 @@ class MovieAdmin(admin.ModelAdmin):
     readonly_fields = ["average_rating", "ratings_count"]
     inlines = [MoviePosterInline, MovieCastCreditInline]
     fieldsets = (
-        (None, {"fields": ("name", "tagline", "image", "description")}),
+        (None, {"fields": ("name", "tagline", "image", "poster_url", "tmdb_id", "description")}),
         (
             "Details",
             {
@@ -101,6 +101,7 @@ class ShowAdmin(admin.ModelAdmin):
     list_display = [
         "movie",
         "theater",
+        "screen_name",
         "language",
         "screen_format",
         "date_time",

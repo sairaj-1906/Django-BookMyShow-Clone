@@ -7,3 +7,6 @@ sqlparse
 typing_extensions
 Pillow
 razorpay
+celery[redis]
+reportlab
+qrcode[pil]

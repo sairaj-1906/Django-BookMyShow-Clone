@@ -4,7 +4,7 @@
 
   <div class="row">
     <div class="col-md-4 mb-4">
-      <img src="{{ movie.image.url }}" class="img-fluid rounded shadow-sm" alt="{{ movie.name }}">
+      {% if movie.poster_display_url %}<img src="{{ movie.poster_display_url }}" class="img-fluid rounded shadow-sm" alt="{{ movie.name }}">{% endif %}
       {% if movie.posters.all %}
       <div class="d-flex flex-wrap mt-2">
         {% for poster in movie.posters.all %}
@@ -58,6 +58,9 @@
       <a href="{% url 'theater_list' movie.id %}" class="btn btn-primary">
         <i class="fas fa-ticket-alt"></i> Book Tickets
       </a>
+      <a href="{% url 'nearby_theaters' %}" class="btn btn-outline-secondary">
+        Find nearby cinemas
+      </a>
     </div>
   </div>
 
@@ -75,6 +78,12 @@
       </div>
     </div>
   </div>
+  {% endif %}
+  {% if movie.tmdb_id %}
+  <p class="small text-muted mt-3">
+    Movie metadata and poster provided by <a href="https://www.themoviedb.org/" rel="noopener noreferrer">TMDb</a>.
+    This product uses the TMDB API but is not endorsed or certified by TMDB.
+  </p>
   {% endif %}
 
   <div class="row mt-5">
@@ -177,7 +186,7 @@
         {% for m in similar_movies %}
         <div class="col-6 col-md-3 mb-3">
           <a href="{% url 'movie_detail' m.id %}" class="text-decoration-none text-dark">
-            <img src="{{ m.image.url }}" class="img-fluid rounded" alt="{{ m.name }}">
+            {% if m.poster_display_url %}<img src="{{ m.poster_display_url }}" class="img-fluid rounded" alt="{{ m.name }}">{% endif %}
             <div class="mt-1">{{ m.name }}</div>
           </a>
         </div>
@@ -195,7 +204,7 @@
         {% for m in trending_movies %}
         <div class="col-6 col-md-3 mb-3">
           <a href="{% url 'movie_detail' m.id %}" class="text-decoration-none text-dark">
-            <img src="{{ m.image.url }}" class="img-fluid rounded" alt="{{ m.name }}">
+            {% if m.poster_display_url %}<img src="{{ m.poster_display_url }}" class="img-fluid rounded" alt="{{ m.name }}">{% endif %}
             <div class="mt-1">{{ m.name }}</div>
           </a>
         </div>
@@ -213,7 +222,7 @@
         {% for m in recent_movies %}
         <div class="col-6 col-md-3 mb-3">
           <a href="{% url 'movie_detail' m.id %}" class="text-decoration-none text-dark">
-            <img src="{{ m.image.url }}" class="img-fluid rounded" alt="{{ m.name }}">
+            {% if m.poster_display_url %}<img src="{{ m.poster_display_url }}" class="img-fluid rounded" alt="{{ m.name }}">{% endif %}
             <div class="mt-1">{{ m.name }}</div>
           </a>
         </div>

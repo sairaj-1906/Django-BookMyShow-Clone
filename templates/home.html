@@ -130,12 +130,12 @@
         <!-- Wrap the card in an anchor to make the entire card clickable -->
         <a href="{% url 'movie_detail' movie.id %}" class="text-decoration-none">
           <div class="card h-100">
-            <img
-              src="{{ movie.image.url }}"
+            {% if movie.poster_display_url %}<img
+              src="{{ movie.poster_display_url }}"
               class="card-img-top"
               alt="{{ movie.name }}"
               height="300"
-            />
+            />{% endif %}
             <div class="card-body d-flex flex-column justify-content-between">
               <h5 class="card-title text-center">{{ movie.name }}</h5>
               <p class="card-text text-center">{{ movie.description }}</p>
@@ -389,7 +389,7 @@
 <ul>
     {% for movie in movies%}
     <li>
-        <img src="{{movie.image.url}}" alt="image" >
+        {% if movie.poster_display_url %}<img src="{{movie.poster_display_url}}" alt="{{ movie.name }}" >{% endif %}
         <strong>{{movie.name}}</strong>{{movie.rating}}
         <p>Cast:{{movie.cast}}</p>
         <a href="{% url 'theater_list' movie.id %}">View Theaters</a>

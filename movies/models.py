@@ -91,7 +91,15 @@ class Movie(models.Model):
 
     name = models.CharField(max_length=255)
     tagline = models.CharField(max_length=255, blank=True)
-    image = models.ImageField(upload_to="movies/", help_text="Primary poster image")
+    image = models.ImageField(
+        upload_to="movies/", blank=True, help_text="Primary poster image"
+    )
+    tmdb_id = models.PositiveIntegerField(
+        unique=True, null=True, blank=True, help_text="Movie Database (TMDb) movie ID"
+    )
+    poster_url = models.URLField(
+        blank=True, help_text="External poster URL supplied by TMDb"
+    )
     description = models.TextField(blank=True, null=True)
     duration_minutes = models.PositiveIntegerField(
         default=0, help_text="Runtime in minutes"
@@ -138,6 +146,14 @@ class Movie(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def poster_display_url(self):
+        if self.poster_url:
+            return self.poster_url
+        if self.image:
+            return self.image.url
+        return ""
 
     def save(self, *args, **kwargs):
         if self.trailer_youtube_id:
@@ -271,6 +287,7 @@ class Show(models.Model):
     screen_format = models.CharField(
         max_length=10, choices=FORMAT_CHOICES, default=FORMAT_2D
     )
+    screen_name = models.CharField(max_length=100, default="Screen 1")
     date_time = models.DateTimeField()
     price = models.DecimalField(max_digits=8, decimal_places=2, default=200)
 

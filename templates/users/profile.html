@@ -82,6 +82,9 @@
                   </p>
                   <!-- {% if booking.payment %} -->
                   <span class="badge bg-success">Paid — ₹{{booking.payment.amount}}</span>
+                  {% if booking.payment.status == "success" %}
+                  <a class="btn btn-sm btn-outline-primary mt-2" href="{% url 'download_ticket' booking.payment_id %}">Download ticket</a>
+                  {% endif %}
                   <!-- {% endif %} -->
                 </div>
               </div>
@@ -186,4 +189,3 @@
   </div> -->
 
 {% endblock %}
-
