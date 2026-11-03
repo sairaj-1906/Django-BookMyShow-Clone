@@ -131,11 +131,11 @@ DATABASES = {
     }
 }
 
-# DATABASES['default'] = cast(
-#     dict[str, Any],
-#     dj_database_url.parse('postgresql://django_bookmyshow_qvm8_user:DIKZYRFNOhfLirRZGkUwrsxoUIzHULPy@dpg-dadtv0qd0e5s73ebvaug-a.oregon-postgres.render.com/django_bookmyshow_qvm8'),
-# )
-#
+DATABASES['default'] = cast(
+    dict[str, Any],
+    dj_database_url.parse('postgresql://django_bookmyshow_pl33_user:dR5RfE7nNFu93b5k98KqdeD8vtTJd6mi@dpg-dbkrra15efls73fg61fg-a.ohio-postgres.render.com/django_bookmyshow_pl33'),
+)
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

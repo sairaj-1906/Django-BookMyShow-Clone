@@ -68,25 +68,29 @@ Django-BookMyShow-Clone/
    pip install -r requirements.txt
    ```
 
-4. Apply migrations
+4. Configure the database. Without `DATABASE_URL`, the project uses the local
+   `db.sqlite3` file. To use PostgreSQL, set `DATABASE_URL` to its connection URL.
+   Keep this value in your deployment environment settings; do not commit it.
+
+5. Apply migrations
 
    ```bash
    python manage.py migrate
    ```
 
-5. Create a superuser (optional, for admin access)
+6. Create a superuser (optional, for admin access)
 
    ```bash
    python manage.py createsuperuser
    ```
 
-6. Run the development server
+7. Run the development server
 
    ```bash
    python manage.py runserver
    ```
 
-7. Visit `http://127.0.0.1:8000/` in your browser.
+8. Visit `http://127.0.0.1:8000/` in your browser.
 
 ### Ticket emails and background worker
 
