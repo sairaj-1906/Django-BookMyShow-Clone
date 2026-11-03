@@ -92,6 +92,26 @@ Django-BookMyShow-Clone/
 
 8. Visit `http://127.0.0.1:8000/` in your browser.
 
+### Add local sample movies, theaters, shows, and seats
+
+For a ready-to-browse local demo without external movie or theater APIs, run:
+
+```powershell
+python manage.py seed_sample_catalog
+```
+
+The command is safe to rerun: it adds fictional demo movies, six clearly labeled demo
+theaters, upcoming sample shows, and available seats without deleting existing data.
+It refuses to seed non-SQLite databases unless you explicitly add `--confirm-nonlocal`
+after checking the target is a development database:
+
+```powershell
+python manage.py seed_sample_catalog --confirm-nonlocal
+```
+
+These are not real releases, venues, or bookable showtimes. Browse them at `/movies/`;
+manage the catalog through `/admin/`.
+
 ### Ticket emails and background worker
 
 Ticket PDFs are generated after payment confirmation and emailed by Celery. Run a Redis
