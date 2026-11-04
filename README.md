@@ -69,9 +69,15 @@ Django-BookMyShow-Clone/
    ```
 
 4. Configure the database. Without `DATABASE_URL`, the project uses the local
-   `db.sqlite3` file. To use PostgreSQL, set `DATABASE_URL` to its connection URL.
-   Keep this value in your deployment environment settings; do not commit it. For
-   deployment, also set `DJANGO_SECRET_KEY`, `DEBUG=false`, and `ALLOWED_HOSTS`.
+   `db.sqlite3` file. For local setup, copy `.env.example` to `.env` and set
+   `DATABASE_URL` to your PostgreSQL URL. `.env` is ignored by Git and loaded on startup.
+   In Render, set `DATABASE_URL` in the service's Environment settings, preferably using
+   the database's internal URL for services in the same region. For deployment, also set
+   `DJANGO_SECRET_KEY`, `DEBUG=false`, and `ALLOWED_HOSTS`.
+
+   From a local computer, use the database's external URL and append
+   `?sslmode=require`; from a Render service, use the internal URL shown in Render.
+   Never commit `.env` or paste database passwords into source files.
 
 5. Apply migrations
 
