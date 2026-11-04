@@ -4,6 +4,7 @@ from decimal import Decimal
 from io import StringIO
 from unittest.mock import patch
 from urllib.error import HTTPError
+from urllib.parse import parse_qs
 
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
@@ -104,31 +105,64 @@ class CatalogClientTests(SimpleTestCase):
         with self.assertRaisesRegex(CatalogIntegrationError, "rejected the API credentials"):
             _request_json("https://api.themoviedb.org/3/configuration")
 
-    @override_settings(GOOGLE_PLACES_API_KEY="places-test-key")
+    @override_settings(
+        OSM_OVERPASS_URL="https://overpass.test/api/interpreter",
+        OSM_OVERPASS_TIMEOUT=12,
+    )
     @patch("movies.catalog_integrations.urlopen")
-    def test_places_search_requests_only_needed_nearby_fields(self, urlopen):
+    def test_overpass_search_normalizes_nearby_cinema_data(self, urlopen):
         response = urlopen.return_value.__enter__.return_value
-        response.read.return_value = b'{"places":[{"id":"place-1"}]}'
+        response.read.return_value = json.dumps(
+            {
+                "elements": [
+                    {
+                        "type": "way",
+                        "id": 123,
+                        "center": {"lat": 19.077, "lon": 72.878},
+                        "tags": {
+                            "name": "Central Cinema",
+                            "addr:street": "Cinema Road",
+                            "addr:city": "Mumbai",
+                        },
+                    },
+                    {
+                        "type": "node",
+                        "id": 456,
+                        "lat": 19.078,
+                        "lon": 72.879,
+                        "tags": {"name": "Second Cinema"},
+                    },
+                ]
+            }
+        ).encode()
 
         places = find_nearby_theaters(19.076, 72.8777)
 
-        self.assertEqual(places, [{"id": "place-1"}])
+        self.assertEqual([place["name"] for place in places], ["Central Cinema", "Second Cinema"])
+        self.assertEqual(places[0]["address"], "Cinema Road, Mumbai")
+        self.assertEqual(places[0]["osm_url"], "https://www.openstreetmap.org/way/123")
+        self.assertGreater(places[0]["distance_meters"], 0)
         request = urlopen.call_args.args[0]
         self.assertEqual(request.get_method(), "POST")
-        self.assertEqual(request.get_header("X-goog-api-key"), "places-test-key")
-        self.assertIn("places.googleMapsUri", request.get_header("X-goog-fieldmask"))
-        body = json.loads(request.data)
-        self.assertEqual(body["includedTypes"], ["movie_theater"])
-        self.assertEqual(body["locationRestriction"]["circle"]["radius"], 25000)
+        self.assertEqual(request.full_url, "https://overpass.test/api/interpreter")
         self.assertEqual(
-            body["locationRestriction"]["circle"]["center"],
-            {"latitude": 19.076, "longitude": 72.8777},
+            request.get_header("User-agent"),
+            "BookMySeat/1.0 (nearby cinema search; "
+            "https://github.com/sairaj-1906/Django-BookMyShow-Clone)",
         )
+        body = parse_qs(request.data.decode())
+        self.assertIn('node["amenity"="cinema"](around:25000,19.076,72.8777);', body["data"][0])
+        self.assertIn("out center tags 30;", body["data"][0])
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 12)
 
-    @override_settings(GOOGLE_PLACES_API_KEY="")
-    def test_places_requires_credentials(self):
-        with self.assertRaises(CatalogIntegrationError):
-            find_nearby_theaters(19.076, 72.8777)
+    @patch("movies.catalog_integrations.urlopen")
+    def test_overpass_does_not_require_api_credentials(self, urlopen):
+        response = urlopen.return_value.__enter__.return_value
+        response.read.return_value = b'{"elements":[]}'
+
+        self.assertEqual(find_nearby_theaters(19.076, 72.8777), [])
+        request = urlopen.call_args.args[0]
+        self.assertNotIn("api_key", request.full_url)
 
     def test_tmdb_poster_url_rejects_non_provider_paths(self):
         self.assertEqual(
@@ -191,7 +225,6 @@ class ShowtimeAdapterTests(SimpleTestCase):
 
 
 class NearbyTheaterViewTests(TestCase):
-    @override_settings(GOOGLE_PLACES_API_KEY="places-test-key")
     @patch("movies.views.find_nearby_theaters", return_value=[])
     def test_nearby_cinema_search_requires_valid_browser_coordinates(self, search):
         response = self.client.get(reverse("nearby_theaters"), {"lat": "91", "lng": "72"})
@@ -204,31 +237,32 @@ class NearbyTheaterViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         search.assert_called_once_with(19.076, 72.8777)
 
-    @override_settings(GOOGLE_PLACES_API_KEY="places-test-key")
     @patch(
         "movies.views.find_nearby_theaters",
         return_value=[
             {
-                "displayName": {"text": "Central Cinema"},
-                "formattedAddress": "Mumbai",
-                "googleMapsUri": "https://maps.google.com/?cid=123",
+                "name": "Central Cinema",
+                "address": "Mumbai",
+                "distance_meters": 250,
+                "osm_url": "https://www.openstreetmap.org/way/123",
             }
         ],
     )
-    def test_nearby_places_are_rendered_with_google_attribution(self, search):
+    def test_nearby_places_are_rendered_with_openstreetmap_attribution(self, search):
         response = self.client.get(
             reverse("nearby_theaters"), {"lat": "19.076", "lng": "72.8777"}
         )
 
         self.assertContains(response, "Central Cinema")
-        self.assertContains(response, "View on Google Maps")
-        self.assertContains(response, "Venue information provided by Google Maps")
+        self.assertContains(response, "View on OpenStreetMap")
+        self.assertContains(response, "OpenStreetMap contributors")
+        self.assertContains(response, "250 m away")
         search.assert_called_once()
 
-    @override_settings(GOOGLE_PLACES_API_KEY="")
-    def test_nearby_search_reports_unconfigured_provider(self):
+    def test_nearby_search_does_not_require_provider_credentials(self):
         response = self.client.get(reverse("nearby_theaters"))
-        self.assertContains(response, "GOOGLE_PLACES_API_KEY")
+        self.assertNotContains(response, "not configured")
+        self.assertNotContains(response, "OpenStreetMap contributors")
 
 
 class TmdbImportCommandTests(TestCase):

@@ -114,7 +114,7 @@ class Command(BaseCommand):
             fn()
             _, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
-            ms, q = _timed(fn, max(1, runs // 2))
+            ms, q = _timed(fn, runs)
             results[label] = {
                 "ms": round(ms, 1),
                 "queries": q,

@@ -13,6 +13,7 @@ from .models import (
     MoviePoster,
     MovieView,
     Payment,
+    PaymentRefund,
     Review,
     ReviewReport,
     Seat,
@@ -191,6 +192,40 @@ class PaymentAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     ]
+
+
+@admin.register(PaymentRefund)
+class PaymentRefundAdmin(admin.ModelAdmin):
+    list_display = [
+        "id",
+        "payment",
+        "amount",
+        "status",
+        "razorpay_refund_id",
+        "created_at",
+    ]
+    list_filter = ["status", "currency"]
+    search_fields = ["payment__razorpay_payment_id", "razorpay_refund_id", "idempotency_key"]
+    readonly_fields = [
+        "payment",
+        "amount",
+        "currency",
+        "idempotency_key",
+        "razorpay_refund_id",
+        "status",
+        "reason",
+        "failure_reason",
+        "queued_at",
+        "submitted_at",
+        "created_at",
+        "updated_at",
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(SeatHold)

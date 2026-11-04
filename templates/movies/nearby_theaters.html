@@ -4,26 +4,22 @@
   <h1 class="h2 mb-3">Nearby cinemas</h1>
   <p class="text-muted">Find cinema venues near your current location. This does not indicate current showtimes or ticket availability.</p>
 
-  {% if not configured %}
-  <div class="alert alert-info">Nearby cinema search is not configured. Set GOOGLE_PLACES_API_KEY to enable it.</div>
-  {% endif %}
   {% if error %}<div class="alert alert-warning">{{ error }}</div>{% endif %}
 
   <button
     type="button"
     class="btn btn-primary mb-4"
     id="nearby-theaters-button"
-    {% if not configured %}disabled{% endif %}
   >Use my location</button>
 
   {% if places %}
   <div class="list-group">
     {% for place in places %}
     <article class="list-group-item">
-      <h2 class="h5 mb-1">{{ place.displayName.text }}</h2>
-      <p class="mb-1">{{ place.formattedAddress }}</p>
-      {% if place.rating %}<p class="small text-muted mb-1">★ {{ place.rating }}{% if place.userRatingCount %} ({{ place.userRatingCount }} reviews){% endif %}</p>{% endif %}
-      {% if place.googleMapsUri %}<a href="{{ place.googleMapsUri }}" target="_blank" rel="noopener noreferrer">View on Google Maps</a>{% endif %}
+      <h2 class="h5 mb-1">{{ place.name }}</h2>
+      {% if place.address %}<p class="mb-1">{{ place.address }}</p>{% endif %}
+      <p class="small text-muted mb-1">{{ place.distance_meters }} m away</p>
+      <a href="{{ place.osm_url }}" target="_blank" rel="noopener noreferrer">View on OpenStreetMap</a>
     </article>
     {% endfor %}
   </div>
@@ -32,7 +28,10 @@
   {% endif %}
 
   {% if places %}
-  <p class="small text-muted mt-3">Venue information provided by Google Maps. Search results are fetched on demand and are not stored by this app.</p>
+  <p class="small text-muted mt-3">
+    Cinema data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, available under the Open Database License (ODbL).
+    Results are queried on demand from the public Overpass API and are not stored by this app. Public service availability and rate limits apply.
+  </p>
   {% endif %}
 </main>
 <script>

@@ -114,8 +114,10 @@ class TicketFlowTests(TestCase):
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_celery_task_emails_pdf_ticket(self):
         send_booking_ticket_email.run(self.payment.pk)
+        self.payment.refresh_from_db()
 
         self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(self.payment.ticket_email_status, Payment.EMAIL_SENT)
         self.assertEqual(mail.outbox[0].to, [self.user.email])
         self.assertEqual(len(mail.outbox[0].attachments), 1)
         filename, attachment, content_type = mail.outbox[0].attachments[0]

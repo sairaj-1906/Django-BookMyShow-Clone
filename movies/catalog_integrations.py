@@ -1,4 +1,5 @@
 import json
+import math
 import re
 import socket
 from urllib.error import HTTPError, URLError
@@ -28,8 +29,8 @@ def _request_json(url, *, headers=None, body=None, timeout=8):
     except HTTPError as exc:
         if exc.code in (401, 403):
             message = (
-                f"{host} rejected the API credentials (HTTP {exc.code}); verify the key/token "
-                "and, for Google Places, that Places API (New) is enabled with billing."
+                f"{host} rejected the API credentials or request (HTTP {exc.code}); "
+                "verify the provider configuration and access policy."
             )
         elif exc.code == 429:
             message = f"{host} rate-limited the request (HTTP 429); retry later or check your quota."
@@ -113,37 +114,106 @@ def tmdb_poster_url(poster_path):
 
 
 def find_nearby_theaters(latitude, longitude, *, radius_meters=25000):
-    """Query Places API (New) on demand; Google place content is not persisted."""
-    if not settings.GOOGLE_PLACES_API_KEY:
-        raise CatalogIntegrationError("GOOGLE_PLACES_API_KEY is not configured.")
-    body = json.dumps(
-        {
-            "includedTypes": ["movie_theater"],
-            "maxResultCount": 20,
-            "rankPreference": "DISTANCE",
-            "locationRestriction": {
-                "circle": {
-                    "center": {
-                        "latitude": latitude,
-                        "longitude": longitude,
-                    },
-                    "radius": radius_meters,
-                }
-            },
-        }
-    ).encode("utf-8")
+    """Find nearby cinema venues through OpenStreetMap's public Overpass API."""
+    try:
+        latitude, longitude = float(latitude), float(longitude)
+        radius_meters = int(radius_meters)
+    except (TypeError, ValueError) as exc:
+        raise CatalogIntegrationError("A valid location and radius are required.") from exc
+    if (
+        not math.isfinite(latitude)
+        or not math.isfinite(longitude)
+        or not -90 <= latitude <= 90
+        or not -180 <= longitude <= 180
+        or not 1 <= radius_meters <= 50000
+    ):
+        raise CatalogIntegrationError("The location or search radius is out of range.")
+
+    overpass_url = getattr(
+        settings,
+        "OSM_OVERPASS_URL",
+        "https://overpass-api.de/api/interpreter",
+    )
+    timeout = getattr(settings, "OSM_OVERPASS_TIMEOUT", 25)
+    query = (
+        f"[out:json][timeout:{max(1, int(timeout))}];("
+        f'node["amenity"="cinema"](around:{radius_meters},{latitude},{longitude});'
+        f'way["amenity"="cinema"](around:{radius_meters},{latitude},{longitude});'
+        f'relation["amenity"="cinema"](around:{radius_meters},{latitude},{longitude});'
+        ");out center tags 30;"
+    )
+    body = urlencode({"data": query}).encode("utf-8")
     data = _request_json(
-        "https://places.googleapis.com/v1/places:searchNearby",
+        overpass_url,
         headers={
-            "Content-Type": "application/json",
-            "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
-            "X-Goog-FieldMask": (
-                "places.id,places.displayName,places.formattedAddress,"
-                "places.location,places.googleMapsUri,places.rating,"
-                "places.userRatingCount"
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": (
+                "BookMySeat/1.0 (nearby cinema search; "
+                "https://github.com/sairaj-1906/Django-BookMyShow-Clone)"
             ),
         },
         body=body,
-        timeout=settings.GOOGLE_PLACES_TIMEOUT,
+        timeout=timeout,
     )
-    return data.get("places", [])
+
+    def distance_meters(lat, lon):
+        earth_radius = 6_371_000
+        lat1, lat2 = math.radians(latitude), math.radians(lat)
+        dlat = lat2 - lat1
+        dlon = math.radians(lon - longitude)
+        value = (
+            math.sin(dlat / 2) ** 2
+            + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        )
+        return int(2 * earth_radius * math.asin(min(1, math.sqrt(value))))
+
+    venues = []
+    seen = set()
+    for element in data.get("elements", []):
+        tags = element.get("tags") or {}
+        name = tags.get("name") or tags.get("brand") or tags.get("operator")
+        center = element.get("center") or element
+        try:
+            lat, lon = float(center["lat"]), float(center["lon"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not name or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            continue
+        osm_type, osm_id = element.get("type"), element.get("id")
+        if osm_type not in {"node", "way", "relation"} or not isinstance(osm_id, int):
+            continue
+        key = (osm_type, osm_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        address = ", ".join(
+            value
+            for value in (
+                " ".join(
+                    part
+                    for part in (
+                        tags.get("addr:housenumber"),
+                        tags.get("addr:street"),
+                    )
+                    if part
+                ),
+                tags.get("addr:suburb"),
+                tags.get("addr:city") or tags.get("addr:town") or tags.get("addr:village"),
+                tags.get("addr:postcode"),
+            )
+            if value
+        )
+        distance = distance_meters(lat, lon)
+        if distance > radius_meters:
+            continue
+        venues.append(
+            {
+                "name": name,
+                "address": address,
+                "distance_meters": distance,
+                "latitude": lat,
+                "longitude": lon,
+                "osm_url": f"https://www.openstreetmap.org/{osm_type}/{osm_id}",
+            }
+        )
+    return sorted(venues, key=lambda venue: venue["distance_meters"])[:30]

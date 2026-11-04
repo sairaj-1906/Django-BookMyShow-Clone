@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+build/
+dist/
 
 # Virtual environments
 .venv/
@@ -12,7 +15,8 @@ ENV/
 # Django local files
 *.log
 local_settings.py
-db.sqlite3
+*.sqlite3
+*.sqlite3-*
 media/
 staticfiles/
 
@@ -23,9 +27,12 @@ staticfiles/
 
 # Test and tool caches
 .pytest_cache/
+.tox/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
 .coverage
+.coverage.*
 htmlcov/
 
 # Celery
@@ -33,7 +40,8 @@ celerybeat-schedule
 celerybeat-schedule.*
 
 # Editors and operating systems
-.vscode/
-.prettierignore
+.vscode/*
+!.vscode/settings.json
+.idea/
 .DS_Store
 Thumbs.db

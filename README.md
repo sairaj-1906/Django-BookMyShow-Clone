@@ -70,7 +70,8 @@ Django-BookMyShow-Clone/
 
 4. Configure the database. Without `DATABASE_URL`, the project uses the local
    `db.sqlite3` file. To use PostgreSQL, set `DATABASE_URL` to its connection URL.
-   Keep this value in your deployment environment settings; do not commit it.
+   Keep this value in your deployment environment settings; do not commit it. For
+   deployment, also set `DJANGO_SECRET_KEY`, `DEBUG=false`, and `ALLOWED_HOSTS`.
 
 5. Apply migrations
 
@@ -78,7 +79,8 @@ Django-BookMyShow-Clone/
    python manage.py migrate
    ```
 
-6. Create a superuser (optional, for admin access)
+6. Create a superuser (optional, for admin access). Django prompts for a password;
+   this project intentionally does not ship with default administrator credentials.
 
    ```bash
    python manage.py createsuperuser
@@ -109,6 +111,40 @@ after checking the target is a development database:
 python manage.py seed_sample_catalog --confirm-nonlocal
 ```
 
+### Admin access and analytics
+
+Create the initial admin account interactively with `python manage.py createsuperuser`.
+For an existing staff account that needs the analytics dashboard, grant the
+`movies.view_dashboard` permission in Django Admin or through a group. Superusers
+automatically have access. Never put administrator passwords or payment/database
+credentials in source control or reports; provision them through a secure secrets
+manager and rotate any credentials that may have been committed previously.
+
+The analytics dashboard uses database-side aggregates and streaming CSV exports. The
+date-filter and join paths have indexes on booking time, movie plus booking time,
+successful payment status plus paid time, show time, and movie plus show time. To
+measure the implementation on a disposable local database with the 100k+ seeded data,
+run:
+
+```powershell
+python manage.py seed_analytics_data
+python manage.py benchmark_dashboard --days 365 --runs 5 --naive
+```
+
+The benchmark compares ORM aggregation with loading booking records into Python and
+reports median runtime, query count, and peak Python memory. On PostgreSQL, add
+`--explain` to print `EXPLAIN ANALYZE` plans. Do not seed benchmark data into a live
+database. The benchmark output is environment-dependent; capture it from the target
+database before publishing quantitative performance claims.
+
+Verification run in this development environment (SQLite, 116,383 bookings, 3 timed
+runs) measured the whole dashboard at 974 ms and 15 aggregate queries. For peak-hour
+and movie-count reports, database aggregation took 309 ms versus 4,351 ms for loading
+and counting booking objects in Python (about 14x faster); measured peak Python memory
+was under 0.1 MB versus 236 MB. This is a local SQLite result, not a production
+PostgreSQL guarantee; run the benchmark and query plans against the intended deployment
+database before capacity planning.
+
 These are not real releases, venues, or bookable showtimes. Browse them at `/movies/`;
 manage the catalog through `/admin/`.
 
@@ -122,14 +158,24 @@ celery -A bookmymovie worker --loglevel=info
 ```
 
 On Windows development machines, add `--pool=solo` to the worker command.
+Start Celery Beat as a separate process to release expired hold rows and re-enqueue
+pending ticket-email/refund jobs:
+
+```bash
+celery -A bookmymovie beat --loglevel=info
+```
+
+Expired holds are also ignored and lazily removed on seat-map and checkout requests, so
+seat availability remains correct if Beat is temporarily unavailable.
 
 Set `CELERY_BROKER_URL` to your Redis URL. For real email delivery, configure `EMAIL_HOST`,
 `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, and
 `DEFAULT_FROM_EMAIL`. The default console email backend is intended for local development.
 Set `PUBLIC_BASE_URL` to the public HTTPS origin of the deployed app so QR codes open the
 live ticket verification page. If the broker is unavailable, the confirmed booking is kept
-and an error is logged; email delivery failures after a task starts are retried up to five
-times with exponential backoff.
+and its email remains pending for Celery Beat to enqueue again; delivery failures after a
+task starts are retried up to five times with exponential backoff. Beat also re-enqueues
+stale email/refund tasks if a worker stops before marking delivery complete.
 
 Venues and local show schedules remain manageable through Django Admin. Current
 third-party provider availability depends on the credentials configured below.
@@ -163,11 +209,15 @@ Provider errors now distinguish missing/invalid credentials, quota limits, and n
 timeouts. You can increase the request timeout with `TMDB_API_TIMEOUT` (seconds; default
 15). Restart Django after changing environment variables. Never commit API keys.
 
-Nearby cinemas are looked up on demand through Google Places API (New). Enable Places API
-for a Google Cloud project, configure billing and an appropriately restricted server key,
-then set `GOOGLE_PLACES_API_KEY`. Users can use the "Nearby cinemas" page and grant browser
-location permission. Place results are not saved to the database; the page identifies
-Google Maps as the source. See Google's [Nearby Search documentation](https://developers.google.com/maps/documentation/places/web-service/nearby-search).
+Nearby cinemas are queried on demand from the public
+[OpenStreetMap Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API); no API key
+or billing account is required. Users can use the "Nearby cinemas" page and grant browser
+location permission. Results show the distance, any mapped address, and a link to the
+OpenStreetMap object. Cinema data is attributed to OpenStreetMap contributors under the
+[ODbL](https://www.openstreetmap.org/copyright) and is not stored by the app. The public
+Overpass service is community-run, has fair-use/rate limits, and is not guaranteed to be
+available for production traffic. Set `OSM_OVERPASS_URL` to another compatible Overpass
+instance if needed and `OSM_OVERPASS_TIMEOUT` to adjust the request timeout.
 
 Actual showtimes and seat inventory need a commercial agreement and credentials from the
 exhibitor or ticketing partner. The app provides a `ShowtimeProvider` adapter contract in
