@@ -124,7 +124,7 @@ DATABASES = {
 
 DATABASES['default'] = cast(
     dict[str, Any],
-    dj_database_url.parse('postgresql://django_bookmyshow_e9tj_user:1SHotUZi51AQpyZ2I2dLj63z6nFXWduI@dpg-dbm3mltg1s2s73c1r1o0-a.oregon-postgres.render.com/django_bookmyshow_e9tj'),
+    dj_database_url.parse('postgresql://django_bookmyshow_e9tj_user:1SHotUZi51AQpyZ2I2dLj63z6nFXWduI@dpg-dbm3mltg1s2s73c1r1o0-a.oregon-postgres.render.com/django_bookmyshow_e9tj?sslmode=require'),
 )
 
 
