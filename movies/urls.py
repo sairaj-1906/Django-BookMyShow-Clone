@@ -6,6 +6,7 @@ urlpatterns = [
     path("", views.movie_list, name="movie_list"),
     path("<int:movie_id>/", views.movie_detail, name="movie_detail"),
     path("<int:movie_id>/theaters/", views.show_list, name="theater_list"),
+    path("theaters/nearby/", views.nearby_cinemas, name="nearby_cinemas"),
     path("<int:movie_id>/reviews/submit/", views.submit_review, name="submit_review"),
     path("reviews/<int:review_id>/edit/", views.edit_review, name="edit_review"),
     path("reviews/<int:review_id>/delete/", views.delete_review, name="delete_review"),
@@ -25,6 +26,12 @@ urlpatterns = [
     ),
     path("payments/webhook/razorpay/", views.razorpay_webhook, name="razorpay_webhook"),
     path("payments/history/", views.payment_history, name="payment_history"),
+    path(
+        "payments/<int:payment_id>/ticket/",
+        views.download_ticket,
+        name="download_ticket",
+    ),
+    path("tickets/verify/<str:token>/", views.verify_ticket, name="verify_ticket"),
     path(
         "theater/<int:theater_id>/seats/book/",
         views.book_seats_legacy,

@@ -19,7 +19,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 15px;
-    background-color: #fff;
+    background-color: var(--surface);
     border-radius: 8px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     margin-bottom: 15px;
@@ -36,19 +36,19 @@
     padding: 10px 0;
   }
   .time-box {
-    border: 1px solid #ddd;
+    border: 1px solid var(--line);
     border-radius: 5px;
     padding: 10px 20px;
     text-align: center;
-    background-color: #f1f1f1;
+    background-color: var(--surface-muted);
     transition:
       transform 0.3s ease,
       background-color 0.3s ease;
   }
   .time-box:hover {
     transform: scale(1.05);
-    background-color: #28a745;
-    color: white;
+    background-color: var(--accent);
+    color: #fff;
   }
   .time-box a {
     color: inherit;
@@ -106,10 +106,105 @@
   </div>
   <!-- {% endif %} -->
 
+  <section class="cinema-discovery mt-5" aria-labelledby="cinema-discovery-title">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-start">
+          <div class="mb-3">
+            <h2 id="cinema-discovery-title" class="h5 mb-1">Find cinemas nearby</h2>
+            <p class="text-muted mb-0">Search OpenStreetMap for movie theaters by city or area.</p>
+          </div>
+          <span class="map-attribution" aria-label="Map data © OpenStreetMap contributors">© OpenStreetMap contributors</span>
+        </div>
+        <form id="cinema-search-form" action="{% url 'nearby_cinemas' %}" method="get" class="form-inline">
+          <label class="sr-only" for="cinema-location">City or area</label>
+          <input id="cinema-location" name="location" class="form-control flex-grow-1 mr-sm-2 mb-2 mb-sm-0" type="search" maxlength="100" placeholder="e.g. Pune, Maharashtra" required>
+          <button id="cinema-search-button" class="btn btn-primary" type="submit"><i class="fas fa-search mr-1"></i>Find cinemas</button>
+        </form>
+        <p class="text-muted small mt-3 mb-0">Community-maintained map listings are not BookMySeat showtimes or bookable seats. Results may be incomplete. Searches are cached and rate-limited to respect OpenStreetMap's public services.</p>
+        <div id="cinema-search-status" class="small mt-3" role="status" aria-live="polite"></div>
+        <div id="cinema-search-results" class="mt-2"></div>
+      </div>
+    </div>
+  </section>
+
   <div class="non-cancellable mt-4">
     <i class="fas fa-circle text-warning"></i> Non-cancellable
   </div>
 </div>
 
-{% endblock %}
+<style>
+  .cinema-discovery { max-width: 760px; margin-right: auto; margin-left: auto; }
+  .map-attribution { padding: .3rem .6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-muted); color: var(--muted); font-size: .75rem; font-weight: 700; }
+  .cinema-result { padding: .85rem 0; border-top: 1px solid var(--line); }
+  .cinema-result:first-child { border-top: 0; }
+  .cinema-result h3 { margin: 0 0 .2rem; font-size: 1rem; }
+</style>
 
+<script>
+(function () {
+  var form = document.getElementById("cinema-search-form");
+  var status = document.getElementById("cinema-search-status");
+  var results = document.getElementById("cinema-search-results");
+  var button = document.getElementById("cinema-search-button");
+  if (!form || !status || !results || !button) return;
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var location = document.getElementById("cinema-location").value.trim();
+    if (location.length < 2) {
+      status.textContent = "Enter a city or area name to search.";
+      results.replaceChildren();
+      return;
+    }
+
+    button.disabled = true;
+    status.textContent = "Searching nearby cinemas...";
+    results.replaceChildren();
+    var query = new URLSearchParams({ location: location });
+    fetch(form.action + "?" + query.toString(), {
+      headers: { "Accept": "application/json" }
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) throw new Error(data.error || "Cinema search failed.");
+        return data;
+      });
+    }).then(function (data) {
+      if (!data.cinemas.length) {
+        status.textContent = "No cinemas found. Try a nearby city or area.";
+        return;
+      }
+
+      status.textContent = data.cinemas.length + " cinema" + (data.cinemas.length === 1 ? "" : "s") + " found.";
+      data.cinemas.forEach(function (cinema) {
+        var article = document.createElement("article");
+        article.className = "cinema-result";
+        var title = document.createElement("h3");
+        title.textContent = cinema.name;
+        article.appendChild(title);
+        if (cinema.address) {
+          var address = document.createElement("p");
+          address.className = "text-muted small mb-1";
+          address.textContent = cinema.address;
+          article.appendChild(address);
+        }
+        if (cinema.maps_url) {
+          var link = document.createElement("a");
+          link.href = cinema.maps_url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.textContent = "View on OpenStreetMap";
+          article.appendChild(link);
+        }
+        results.appendChild(article);
+      });
+    }).catch(function (error) {
+      status.textContent = error.message || "Cinema search is temporarily unavailable.";
+    }).finally(function () {
+      button.disabled = false;
+    });
+  });
+})();
+</script>
+
+{% endblock %}

@@ -54,6 +54,7 @@ class CastMemberAdmin(admin.ModelAdmin):
 class MovieAdmin(admin.ModelAdmin):
     list_display = [
         "name",
+        "tmdb_id",
         "age_certification",
         "duration_minutes",
         "release_date",
@@ -101,6 +102,7 @@ class ShowAdmin(admin.ModelAdmin):
     list_display = [
         "movie",
         "theater",
+        "screen_name",
         "language",
         "screen_format",
         "date_time",

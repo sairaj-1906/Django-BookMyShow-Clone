@@ -68,9 +68,9 @@
           </a>
         </div>
         <div class="card-body">
-          <!-- {% if bookings %} -->
+          {% if bookings %}
           <div class="row row-cols-1 row-cols-md-2 g-4">
-            <!-- {% for booking in bookings %} -->
+            {% for booking in bookings %}
             <div class="col">
               <div class="card h-100 border-0 shadow-sm">
                 <div class="card-body">
@@ -79,23 +79,27 @@
                     <i class="fas fa-film me-2 text-muted"> </i> {{booking.theater.name}}<br />
                     <i class="fas fa-chair me-2 text-muted"> </i> Seat: {{booking.seat.seat_number}}<br />
                     <i class="far fa-clock me-2 text-muted"> </i> {{booking.booked_at|date:"F d, Y H:i"}}
+                    {% if booking.show %}<br /><i class="far fa-calendar-alt me-2 text-muted"> </i> Screen: {{booking.show.screen_name}} — {{booking.show.date_time|date:"d M Y, g:i A"}}{% endif %}
                   </p>
-                  <!-- {% if booking.payment %} -->
+                  {% if booking.payment %}
                   <span class="badge bg-success">Paid — ₹{{booking.payment.amount}}</span>
-                  <!-- {% endif %} -->
+                  {% if booking.payment.status == "success" %}
+                  <a class="btn btn-sm btn-outline-primary ms-2" href="{% url 'download_ticket' booking.payment.id %}">Download Ticket</a>
+                  {% endif %}
+                  {% endif %}
                 </div>
               </div>
             </div>
-            <!-- {% endfor %} -->
+            {% endfor %}
           </div>
-          <!-- {% else %} -->
+          {% else %}
           <div class="text-center py-5">
             <i class="fas fa-ticket-alt fa-4x text-muted mb-3"></i>
             <p class="lead mb-0">
               No bookings yet. Time to plan your next movie night!
             </p>
           </div>
-          <!-- {% endif %} -->
+          {% endif %}
         </div>
       </div>
     </div>
@@ -157,33 +161,4 @@
     }
   }
 </style>
-<!-- <div class="container mt-4">
-    <h2>Profile</h2>
-    <form method="POST">
-      <!-- {% csrf_token %} -->
-      {{u_form.as_p}}
-      <div>
-        <button class="btn btn-primary mt-2" type="submit">Update Profile</button>
-      </div>
-    </form>
-   
-    <p>Want to change your password? <a href="{% url 'password_reset' %}">Reset it here</a>.</p>
-
-    <h2>Booking</h2>
-    <ul>
-      <!-- {% for booking in bookings %} -->
-      <li>
-        movie:{{booking.movie.name}}<br>
-        theater:{{booking.theater.name}}<br>
-        seat:{{booking.seat.seat_number}}<br>
-        bookedat:{{booking.booked_at}}
-
-      </li>
-      <!-- {% empty %} -->
-      <li>no bookings yet</li>
-      <!-- {% endfor %} -->
-    </ul>
-  </div> -->
-
 {% endblock %}
-

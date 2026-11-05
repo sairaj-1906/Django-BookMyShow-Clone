@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.paginator import Paginator
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core import signing
 from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
@@ -14,7 +15,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from . import discovery
 from .forms import ReviewForm, ReviewReportForm
@@ -25,6 +26,9 @@ from .payments import (
     verify_payment_signature,
     verify_webhook_signature,
 )
+from .places import OpenStreetMapClient, OpenStreetMapError
+from .tickets import render_ticket_pdf
+from .tasks import send_booking_ticket
 
 
 logger = logging.getLogger(__name__)
@@ -219,6 +223,32 @@ def show_list(request, movie_id):
         "movies/theater_list.html",
         {"movie": movie, "shows": shows, "legacy_theaters": legacy_theaters},
     )
+
+
+@require_GET
+def nearby_cinemas(request):
+    location = request.GET.get("location", "")
+    if any(ord(character) < 32 for character in location):
+        return JsonResponse({"error": "Enter a valid city or area name."}, status=400)
+    location = location.strip()
+    if not location or len(location) < 2 or len(location) > 100:
+        return JsonResponse(
+            {"error": "Enter a city or area name (2 to 100 characters)."},
+            status=400,
+        )
+    try:
+        cinemas = OpenStreetMapClient().search_cinemas(location)
+    except OpenStreetMapError as exc:
+        logger.warning("OpenStreetMap cinema lookup failed: %s", exc)
+        return JsonResponse(
+            {
+                "error": str(exc)
+                if "wait a moment" in str(exc)
+                else "Free map search is temporarily unavailable. Please try again later."
+            },
+            status=503,
+        )
+    return JsonResponse({"cinemas": cinemas})
 
 
 def _purge_expired_holds(show=None):
@@ -568,6 +598,10 @@ def _finalize_booking_for_payment(
                 "updated_at",
             ]
         )
+        if created_bookings:
+            transaction.on_commit(
+                lambda payment_pk=payment.pk: _queue_ticket_email(payment_pk)
+            )
 
         if failed and created_bookings:
             outcome["result"] = "partial_failure"
@@ -744,6 +778,68 @@ def payment_history(request):
         .order_by("-created_at")
     )
     return render(request, "movies/payment_history.html", {"payments": payments})
+
+
+def _queue_ticket_email(payment_id):
+    try:
+        send_booking_ticket.delay(payment_id)
+    except Exception:
+        logger.exception(
+            "Could not queue ticket email for payment %s; booking remains confirmed",
+            payment_id,
+        )
+
+
+@login_required(login_url="/login/")
+def download_ticket(request, payment_id):
+    payment = get_object_or_404(
+        Payment.objects.select_related("show__movie", "show__theater", "user")
+        .prefetch_related("bookings__seat"),
+        id=payment_id,
+        user=request.user,
+        status=Payment.STATUS_SUCCESS,
+    )
+    if not payment.bookings.exists():
+        return HttpResponse("No confirmed booking is linked to this payment.", status=404)
+    pdf = render_ticket_pdf(payment)
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'attachment; filename="ticket-{payment.pk}.pdf"'
+    )
+    return response
+
+
+@require_GET
+def verify_ticket(request, token):
+    try:
+        payment_id = signing.loads(token, salt="movies.ticket")
+    except signing.BadSignature:
+        return JsonResponse({"valid": False, "error": "Invalid ticket."}, status=400)
+
+    payment = (
+        Payment.objects.filter(id=payment_id, status=Payment.STATUS_SUCCESS)
+        .select_related("show__movie", "show__theater")
+        .prefetch_related("bookings__seat")
+        .first()
+    )
+    if payment is None or not payment.bookings.exists():
+        return JsonResponse({"valid": False, "error": "Ticket not found."}, status=404)
+    booking_id = payment.bookings.order_by("id").values_list("id", flat=True).first()
+    return JsonResponse(
+        {
+            "valid": True,
+            "booking_id": f"BMS-{booking_id:08d}",
+            "movie": payment.show.movie.name,
+            "theater": payment.show.theater.name,
+            "screen": payment.show.screen_name,
+            "show_time": payment.show.date_time.isoformat(),
+            "seats": list(
+                payment.bookings.order_by("seat__seat_number").values_list(
+                    "seat__seat_number", flat=True
+                )
+            ),
+        }
+    )
 
 
 @login_required(login_url="/login/")

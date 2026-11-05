@@ -290,6 +290,14 @@ class TemplateIntegrityTests(SimpleTestCase):
                 offenders.append(f"{path.name}: {' '.join(m.group(0).split())}")
         self.assertEqual(offenders, [], "Django tags must not span lines (disable format-on-save for templates)")
 
+    def test_shared_layout_has_accessible_persistent_theme_toggle(self):
+        from django.template.loader import render_to_string
+
+        html = render_to_string("users/basic.html")
+        self.assertIn('id="theme-toggle"', html)
+        self.assertIn('aria-label="Switch to dark mode"', html)
+        self.assertIn("bookmyseat-theme", html)
+
 
 class PublicPagesRenderTests(DashboardTestBase):
     def test_showtimes_page_renders_with_upcoming_show(self):
@@ -306,6 +314,7 @@ class PublicPagesRenderTests(DashboardTestBase):
         r = self.client.get(reverse("profile"))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Theater A")
+        self.assertContains(r, "Download Ticket")
         self.assertNotContains(r, "{{")
         self.assertNotContains(r, "{%")
 

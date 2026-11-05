@@ -40,7 +40,11 @@ def login_view(request):
 
 @login_required
 def profile(request):
-    bookings = Booking.objects.filter(user=request.user)
+    bookings = (
+        Booking.objects.filter(user=request.user)
+        .select_related("movie", "theater", "seat", "show", "payment")
+        .order_by("-booked_at")
+    )
     if request.method == "POST":
         u_form = UserUpdateForm(request.POST, instance=request.user)
         if u_form.is_valid():

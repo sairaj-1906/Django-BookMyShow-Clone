@@ -90,6 +90,9 @@ class Movie(models.Model):
     ]
 
     name = models.CharField(max_length=255)
+    tmdb_id = models.PositiveIntegerField(
+        null=True, blank=True, unique=True, help_text="Movie Database (TMDB) movie ID"
+    )
     tagline = models.CharField(max_length=255, blank=True)
     image = models.ImageField(upload_to="movies/", help_text="Primary poster image")
     description = models.TextField(blank=True, null=True)
@@ -271,6 +274,7 @@ class Show(models.Model):
     screen_format = models.CharField(
         max_length=10, choices=FORMAT_CHOICES, default=FORMAT_2D
     )
+    screen_name = models.CharField(max_length=100, default="Screen 1")
     date_time = models.DateTimeField()
     price = models.DecimalField(max_digits=8, decimal_places=2, default=200)
 

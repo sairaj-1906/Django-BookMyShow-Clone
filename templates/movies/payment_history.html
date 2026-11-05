@@ -1,13 +1,10 @@
 {% extends "users/basic.html" %}
-<!-- -->
 {% block content %}
-
 <div class="container py-5">
   <h2 class="mb-4">Payment &amp; Booking History</h2>
-
-  <!-- {% if payments %} -->
+  {% if payments %}
   <div class="table-responsive">
-    <table class="table table-hover">
+    <table class="table table-hover align-middle">
       <thead>
         <tr>
           <th>Movie</th>
@@ -17,45 +14,46 @@
           <th>Status</th>
           <th>Transaction ID</th>
           <th>Date</th>
+          <th>Ticket</th>
         </tr>
       </thead>
       <tbody>
-        <!-- {% for payment in payments %} -->
+        {% for payment in payments %}
         <tr>
-          <td>{{payment.show.movie.name}}</td>
-          <td>{{payment.show.theater.name}}<br><small class="text-muted">{{payment.show.date_time|date:"d-M-Y"}} {{payment.show.date_time|date:"g:iA"}}</small></td>
-          <td>{{payment.seat_numbers}}</td>
-          <td>&#8377;{{payment.amount}}</td>
+          <td>{{ payment.show.movie.name }}</td>
+          <td>{{ payment.show.theater.name }}<br><small class="text-muted">{{ payment.show.date_time|date:"d-M-Y g:iA" }}</small></td>
+          <td>{{ payment.seat_numbers }}</td>
+          <td>₹{{ payment.amount }}</td>
           <td>
-            <!-- {% if payment.status == "success" %} -->
+            {% if payment.status == "success" %}
             <span class="badge badge-success">Paid</span>
-            <!-- {% elif payment.status == "failed" %} -->
+            {% elif payment.status == "failed" %}
             <span class="badge badge-danger">Failed</span>
-            <!-- {% if payment.failure_reason %} --><br><small class="text-muted">{{payment.failure_reason}}</small><!-- {% endif %} -->
-            <!-- {% elif payment.status == "cancelled" %} -->
+            {% if payment.failure_reason %}<br><small class="text-muted">{{ payment.failure_reason }}</small>{% endif %}
+            {% elif payment.status == "cancelled" %}
             <span class="badge badge-secondary">Cancelled</span>
-            <!-- {% else %} -->
+            {% else %}
             <span class="badge badge-warning">Pending</span>
-            <!-- {% endif %} -->
+            {% endif %}
           </td>
+          <td><small class="text-muted">{{ payment.razorpay_payment_id|default:"-" }}<br>order: {{ payment.razorpay_order_id }}</small></td>
+          <td>{{ payment.created_at|date:"d-M-Y H:i" }}</td>
           <td>
-            <small class="text-muted">{{payment.razorpay_payment_id|default:"-"}}<br>order: {{payment.razorpay_order_id}}</small>
+            {% if payment.status == "success" and payment.bookings.exists %}
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'download_ticket' payment.id %}">Download PDF</a>
+            {% else %}—{% endif %}
           </td>
-          <td>{{payment.created_at|date:"d-M-Y"}} {{payment.created_at|date:"H:i"}}</td>
         </tr>
-        <!-- {% endfor %} -->
+        {% endfor %}
       </tbody>
     </table>
   </div>
-  <!-- {% else %} -->
+  {% else %}
   <div class="text-center py-5">
     <p class="lead">No payments yet.</p>
     <a href="{% url 'movie_list' %}" class="btn btn-primary">Browse movies</a>
   </div>
-  <!-- {% endif %} -->
-
+  {% endif %}
   <a href="{% url 'profile' %}" class="btn btn-outline-secondary mt-3">Back to profile</a>
 </div>
-
 {% endblock %}
-

@@ -17,58 +17,260 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
     />
     <style>
+      :root {
+        color-scheme: light;
+        --page: #f6f7fb;
+        --surface: #ffffff;
+        --surface-raised: #ffffff;
+        --surface-muted: #f0f1f6;
+        --ink: #211e2c;
+        --muted: #777383;
+        --line: #e6e5ec;
+        --accent: #e83d5b;
+        --accent-hover: #cd2948;
+        --accent-soft: #fff0f2;
+        --success: #168a68;
+        --shadow: 0 12px 34px rgba(34, 28, 54, 0.08);
+      }
+      html[data-theme="dark"] {
+        color-scheme: dark;
+        --page: #15141b;
+        --surface: #201f29;
+        --surface-raised: #282733;
+        --surface-muted: #302f3c;
+        --ink: #f4f2f8;
+        --muted: #aaa7b8;
+        --line: #393744;
+        --accent: #ff6078;
+        --accent-hover: #ff8092;
+        --accent-soft: #3a252e;
+        --success: #52d3a6;
+        --shadow: 0 14px 38px rgba(0, 0, 0, 0.24);
+      }
+      * { box-sizing: border-box; }
       body {
-        font-family: Arial, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--page);
+        color: var(--ink);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.55;
+        transition: background-color 0.2s ease, color 0.2s ease;
       }
-      .navbar {
-        background-color: #fff;
-        padding: 10px 20px;
+      body > .container { flex: 1 0 auto; }
+      a { color: var(--accent); }
+      a:hover { color: var(--accent-hover); }
+      .navbar.navbar-dark.bg-dark {
+        position: sticky;
+        top: 0;
+        z-index: 1030;
+        padding: 0.75rem 1rem;
+        background: rgba(26, 24, 34, 0.96) !important;
+        box-shadow: 0 5px 22px rgba(16, 13, 25, 0.16);
+        backdrop-filter: blur(14px);
       }
-      .navbar-brand img {
-        height: 40px;
+      .navbar-brand {
+        display: inline-flex;
+        align-items: center;
+        font-size: 1.2rem;
+        font-weight: 750;
+        letter-spacing: -0.04em;
       }
+      .navbar-brand img { height: 36px; width: 40px; object-fit: cover; border-radius: 9px; }
+      .navbar-nav { align-items: center; }
       .navbar-nav .nav-link {
-        color: #000;
+        padding: 0.55rem 0.8rem !important;
+        color: rgba(255, 255, 255, 0.78) !important;
+        font-size: 0.94rem;
+        font-weight: 600;
+        transition: color 0.2s ease;
       }
-      .banner {
-        background-color: #f8f9fa;
-        padding: 20px;
-        text-align: center;
+      .navbar-nav .nav-link:hover, .navbar-nav .nav-link:focus { color: #fff !important; }
+      .navbar-nav form { margin: 0; }
+      .navbar-nav form button.nav-link { cursor: pointer; }
+      .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        margin: 0.25rem 0.55rem;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.2s ease;
       }
-      .banner img {
-        max-width: 100%;
-        height: auto;
+      .theme-toggle:hover { background: rgba(255, 255, 255, 0.18); transform: rotate(-8deg); }
+      .theme-toggle:focus-visible, a:focus-visible, button:focus-visible {
+        outline: 3px solid rgba(255, 96, 120, 0.55);
+        outline-offset: 3px;
       }
-      .section-title {
-        font-size: 24px;
-        font-weight: bold;
-        margin: 20px 0;
+      .container { max-width: 1200px; }
+      .section-title { margin: 1.5rem 0; font-size: 1.6rem; font-weight: 750; letter-spacing: -0.03em; }
+      h1, h2, h3, h4, h5, h6 { color: var(--ink); font-weight: 700; letter-spacing: -0.025em; }
+      p, label, small { color: inherit; }
+      .text-muted { color: var(--muted) !important; }
+      .card, .filter-box, .list-group-item, .dropdown-menu, .modal-content {
+        border-color: var(--line);
+        background-color: var(--surface);
+        color: var(--ink);
       }
-      .card img {
-        height: 200px;
-        object-fit: cover;
+      .card { border-radius: 14px; box-shadow: 0 4px 18px rgba(34, 28, 54, 0.045); }
+      .card-header { border-color: var(--line); background: var(--surface-muted); color: var(--ink); }
+      .card-footer { border-color: var(--line); background: var(--surface-muted); }
+      .form-control, .custom-select, select, textarea, input[type="text"], input[type="search"], input[type="email"], input[type="password"], input[type="number"], input[type="date"] {
+        border-color: var(--line);
+        border-radius: 9px;
+        background-color: var(--surface);
+        color: var(--ink);
       }
+      .form-control:focus, .custom-select:focus, select:focus, textarea:focus, input:focus {
+        border-color: var(--accent);
+        background-color: var(--surface);
+        color: var(--ink);
+        box-shadow: 0 0 0 0.2rem rgba(232, 61, 91, 0.14);
+      }
+      .btn { border-radius: 9px; font-weight: 650; transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease; }
+      .btn:hover { transform: translateY(-1px); }
+      .btn-primary { border-color: var(--accent); background: var(--accent); }
+      .btn-primary:hover, .btn-primary:focus { border-color: var(--accent-hover); background: var(--accent-hover); }
+      .btn-outline-primary { border-color: var(--accent); color: var(--accent); }
+      .btn-outline-primary:hover { border-color: var(--accent); background: var(--accent); color: #fff; }
+      .bg-primary { border-color: var(--accent) !important; background-color: var(--accent) !important; }
+      .badge { border-radius: 6px; }
+      .table { color: var(--ink); }
+      .table thead th, .table td, .table th { border-color: var(--line); }
+      .table-hover tbody tr:hover { color: var(--ink); background: var(--surface-muted); }
+      .page-link { border-color: var(--line); background: var(--surface); color: var(--accent); }
+      .page-item.active .page-link { border-color: var(--accent); background: var(--accent); }
+      .bg-light { background-color: var(--surface-muted) !important; }
+      .text-dark { color: var(--ink) !important; }
+      .border, .border-bottom { border-color: var(--line) !important; }
+      .alert { border: 0; border-radius: 11px; }
       .footer {
-        background-color: #343a40;
-        color: #f8f9fa;
-        padding: 20px 0;
+        flex-shrink: 0;
+        margin-top: 4rem !important;
+        padding: 3rem 0 1.25rem;
+        background: #1b1923;
+        color: #dedbe6;
       }
-      .footer a {
-        color: #f8f9fa;
-        text-decoration: none;
+      .footer h5 { color: #fff; font-size: 0.98rem; }
+      .footer p { color: #b9b5c3; }
+      .footer a { color: #dedbe6; text-decoration: none; }
+      .footer a:hover { color: #ff8092; text-decoration: none; }
+      .footer hr { border-color: rgba(255, 255, 255, 0.12); }
+      .footer .social-icons i { margin: 0 0.6rem 0 0; font-size: 1.2rem; transition: color 0.2s ease; }
+      .footer .social-icons i:hover { color: #ff6078; }
+      .movie-card {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 13px;
+        background: var(--surface);
+        color: var(--ink) !important;
+        box-shadow: 0 4px 18px rgba(34, 28, 54, 0.06);
+        transition: transform 0.22s ease, box-shadow 0.22s ease;
       }
-      .footer a:hover {
-        text-decoration: underline;
+      .movie-card:hover {
+        transform: translateY(-5px);
+        color: var(--ink) !important;
+        box-shadow: var(--shadow);
       }
-      .footer .social-icons i {
-        font-size: 24px;
-        margin: 0 10px;
-        transition: color 0.3s;
+      .movie-card .card-img-top { height: 300px; background: var(--surface-muted); }
+      .movie-card .card-body { padding: 0.9rem !important; }
+      .movie-title { color: var(--ink); font-weight: 700; font-size: 0.98rem; }
+      .movie-meta, .movie-meta .cert { color: var(--muted); }
+      .movie-meta .rating { color: #d39314; }
+      .movie-genres .badge { background: var(--surface-muted); color: var(--muted); }
+      .movie-price { color: var(--success); }
+      .filter-box { border-radius: 13px; box-shadow: 0 4px 18px rgba(34, 28, 54, 0.045); }
+      .filter-box h6 { color: var(--ink); }
+      .chip { background: var(--accent-soft); color: var(--accent); }
+      .chip:hover { background: var(--accent); color: #fff; }
+      .section-head { color: var(--ink); }
+      .navbar-toggler { border-color: rgba(255, 255, 255, 0.25); }
+      .input-group-text { border-color: var(--line); background: var(--surface-muted); color: var(--muted); }
+      .table-responsive { border-radius: 12px; }
+      .carousel { overflow: hidden; border-radius: 16px; box-shadow: var(--shadow); }
+      .carousel-item img { max-height: 360px; object-fit: cover; }
+      .theatre-info, .time-box { border-color: var(--line); background: var(--surface); color: var(--ink); }
+      .theatre-info { border-radius: 13px; box-shadow: 0 4px 18px rgba(34, 28, 54, 0.05); }
+      .time-box { border-radius: 9px; }
+      .time-box:hover { background: var(--accent); color: #fff; }
+      .screen {
+        max-width: 440px;
+        margin: 1.5rem auto 2rem;
+        border-top: 5px solid #aeb0bc;
+        border-radius: 50% 50% 0 0 / 15% 15% 0 0;
+        background: linear-gradient(180deg, rgba(174, 176, 188, 0.16), transparent);
+        color: var(--muted);
+        text-align: center;
+        padding: 0.55rem 0 1.1rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-size: 0.68rem;
       }
-      .footer .social-icons i:hover {
-        color: #28a745;
+      html[data-theme="dark"] .card, html[data-theme="dark"] .filter-box,
+      html[data-theme="dark"] .theatre-info, html[data-theme="dark"] .time-box,
+      html[data-theme="dark"] .input-group-text, html[data-theme="dark"] .list-group-item {
+        border-color: var(--line) !important;
+        background-color: var(--surface) !important;
+        color: var(--ink) !important;
+      }
+      html[data-theme="dark"] .card-body { background-color: transparent !important; color: var(--ink); }
+      html[data-theme="dark"] .card-header, html[data-theme="dark"] .card-footer {
+        border-color: var(--line) !important;
+        background-color: var(--surface-muted) !important;
+        color: var(--ink) !important;
+      }
+      html[data-theme="dark"] .movie-card, html[data-theme="dark"] .movie-card .card-body {
+        background-color: var(--surface) !important;
+        color: var(--ink) !important;
+      }
+      html[data-theme="dark"] .movie-card:hover, html[data-theme="dark"] .movie-card:hover .movie-title {
+        color: var(--ink) !important;
+      }
+      html[data-theme="dark"] .movie-meta, html[data-theme="dark"] .movie-meta .cert,
+      html[data-theme="dark"] .filter-box h6 { color: var(--muted) !important; }
+      html[data-theme="dark"] .bg-white { background-color: var(--surface) !important; }
+      html[data-theme="dark"] .badge-light { background-color: var(--surface-muted); color: var(--ink); }
+      html[data-theme="dark"] .text-dark { color: var(--ink) !important; }
+      html[data-theme="dark"] .section-title { border-color: var(--accent); color: var(--ink) !important; }
+      html[data-theme="dark"] .time-box:hover { background: var(--accent) !important; color: #fff !important; }
+      html[data-theme="dark"] .input-group-text { border-color: var(--line); }
+      html[data-theme="dark"] body { background-color: var(--page) !important; }
+      html[data-theme="dark"] .btn-primary { border-color: var(--accent) !important; background-color: var(--accent) !important; }
+      html[data-theme="dark"] .btn-primary:hover { border-color: var(--accent-hover) !important; background-color: var(--accent-hover) !important; }
+      html[data-theme="dark"] .alert-info { border-color: #244652; background: #203841; color: #bce7f1; }
+      html[data-theme="dark"] .alert-warning { border-color: #594920; background: #403719; color: #f5d875; }
+      html[data-theme="dark"] .alert-danger { border-color: #5d303b; background: #422630; color: #ffb6c1; }
+      html[data-theme="dark"] .alert-success { border-color: #245643; background: #203b31; color: #a4e7ca; }
+      @media (max-width: 767.98px) {
+        .navbar-nav { align-items: stretch; }
+        .theme-toggle { margin-left: 0; }
+        .movie-card .card-img-top { height: 250px; }
+        .footer { margin-top: 2rem !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
       }
     </style>
+    <script>
+      (function () {
+        var theme = "light";
+        try {
+          theme = localStorage.getItem("bookmyseat-theme") || "";
+        } catch (error) {
+          theme = "";
+        }
+        if (theme !== "light" && theme !== "dark") {
+          theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
   </head>
   <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -95,6 +297,11 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ml-auto">
+            <li class="nav-item">
+              <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode">
+                <i class="fas fa-moon" aria-hidden="true"></i>
+              </button>
+            </li>
             {% if user.is_authenticated %}
             <li class="nav-item">
               <a class="nav-link" href="/">Home</a>
@@ -140,14 +347,24 @@
               We provide the best movie experience in town. Book your tickets
               now and enjoy the show!
             </p>
+            <a href="https://www.themoviedb.org/" rel="noopener noreferrer">
+              <img
+                src="https://www.themoviedb.org/assets/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg"
+                alt="The Movie Database (TMDB)"
+                style="width: 130px; height: auto"
+              />
+            </a>
+            <p class="small mt-2">
+              This product uses the TMDB API but is not endorsed or certified by TMDB.
+              <a href="https://www.themoviedb.org/about/logos-attribution" rel="noopener noreferrer">Attribution</a>
+            </p>
           </div>
           <div class="col-md-4 mb-4 mb-md-0">
             <h5>Quick Links</h5>
             <ul class="list-unstyled">
-              <li><a href="#">Home</a></li>
-              <li><a href="#">Movies</a></li>
-              <li><a href="#">Book Tickets</a></li>
-              <li><a href="#">Contact</a></li>
+              <li><a href="/">Home</a></li>
+              <li><a href="/movies/">Discover movies</a></li>
+              <li><a href="{% url 'payment_history' %}">Booking history</a></li>
             </ul>
           </div>
           <div class="col-md-4">
@@ -161,12 +378,38 @@
         </div>
         <hr class="mt-4 mb-4" />
         <div class="text-center">
-          <p>&copy; 2024 Cinema Booking. All rights reserved.</p>
+          <p>&copy; {% now "Y" %} BookMySeat. All rights reserved.</p>
         </div>
       </div>
     </footer>
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+    <script>
+      (function () {
+        var toggle = document.getElementById("theme-toggle");
+        if (!toggle) return;
+        var icon = toggle.querySelector("i");
+        function setTheme(theme, persist) {
+          document.documentElement.setAttribute("data-theme", theme);
+          var dark = theme === "dark";
+          toggle.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+          toggle.setAttribute("title", dark ? "Switch to light mode" : "Switch to dark mode");
+          icon.className = dark ? "fas fa-sun" : "fas fa-moon";
+          if (persist) {
+            try {
+              localStorage.setItem("bookmyseat-theme", theme);
+            } catch (error) {
+              return;
+            }
+          }
+        }
+        setTheme(document.documentElement.getAttribute("data-theme") || "light", false);
+        toggle.addEventListener("click", function () {
+          var current = document.documentElement.getAttribute("data-theme");
+          setTheme(current === "dark" ? "light" : "dark", true);
+        });
+      })();
+    </script>
   </body>
 </html>

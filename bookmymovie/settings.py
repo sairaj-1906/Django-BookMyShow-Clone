@@ -55,7 +55,25 @@ MIDDLEWARE = [
 ]
 
 AUTH_USER_MODEL = "auth.User"
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "false").lower() == "true"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "tickets@bookmyseat.example")
+SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000").rstrip("/")
+TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "")
+TMDB_ACCESS_TOKEN = os.environ.get("TMDB_ACCESS_TOKEN", "")
+
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_TASK_DEFAULT_QUEUE = "bookmyseat"
+CELERY_TASK_ROUTES = {"movies.tasks.send_booking_ticket": {"queue": "bookmyseat"}}
+CELERY_BROKER_CONNECTION_TIMEOUT = 2
+CELERY_TASK_ACKS_LATE = True
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
@@ -104,11 +122,11 @@ DATABASES = {
     }
 }
 
-# DATABASES['default'] = cast(
-#     dict[str, Any],
-#     dj_database_url.parse('postgresql://django_bookmyshow_qvm8_user:DIKZYRFNOhfLirRZGkUwrsxoUIzHULPy@dpg-dadtv0qd0e5s73ebvaug-a.oregon-postgres.render.com/django_bookmyshow_qvm8'),
-# )
-#
+DATABASES['default'] = cast(
+    dict[str, Any],
+    dj_database_url.parse('postgresql://django_bookmyshow_e9tj_user:1SHotUZi51AQpyZ2I2dLj63z6nFXWduI@dpg-dbm3mltg1s2s73c1r1o0-a.oregon-postgres.render.com/django_bookmyshow_e9tj'),
+)
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
