@@ -4,36 +4,37 @@
 
 <style>
   .discover { max-width: 1300px; }
-  .filter-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: 0 3px 14px rgba(20,20,30,.04); }
-  .filter-box h6 { font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; margin: 18px 0 8px; color: var(--muted); }
+  .filter-box { background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 14px 16px; }
+  .filter-box h6 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 6px; color: #444; }
   .filter-box h6:first-child { margin-top: 0; }
   .checks { max-height: 170px; overflow-y: auto; }
   .checks ul { list-style: none; padding: 0; margin: 0; }
-  .checks label { font-weight: normal; margin: 0 0 6px; cursor: pointer; font-size: 13px; color: var(--text); }
-  .checks input { margin-right: 7px; accent-color: var(--accent); }
-  .chip { display: inline-block; background: var(--surface-muted); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 4px 11px; margin: 0 6px 6px 0; font-size: 12px; text-decoration: none; }
-  .chip:hover { border-color: var(--accent); background: var(--surface); color: var(--accent); text-decoration: none; }
+  .checks label { font-weight: normal; margin: 0 0 3px; cursor: pointer; font-size: 14px; }
+  .checks input { margin-right: 6px; }
+  .movie-card { border: none; border-radius: 8px; overflow: hidden; color: #222; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: transform .2s, box-shadow .2s; }
+  .movie-card:hover { transform: translateY(-4px); box-shadow: 0 8px 18px rgba(0,0,0,.12); color: #222; }
+  .movie-card .card-img-top { height: 270px; object-fit: cover; background: #e9ecef; }
+  .movie-title { font-weight: 600; font-size: 15px; line-height: 1.25; margin-bottom: 3px; }
+  .movie-meta { font-size: 12px; color: #666; }
+  .movie-meta .rating { color: #d98e04; font-weight: 600; margin-right: 8px; }
+  .movie-genres { margin: 4px 0; min-height: 20px; }
+  .movie-genres .badge { font-weight: normal; font-size: 11px; }
+  .movie-price { font-size: 13px; font-weight: 600; color: #198754; }
+  .chip { display: inline-block; background: #e7f1ff; color: #0b5ed7; border-radius: 14px; padding: 2px 10px; margin: 0 6px 6px 0; font-size: 13px; text-decoration: none; }
+  .chip:hover { background: #cfe2ff; text-decoration: none; }
   #results { transition: opacity .15s; }
   #results.loading { opacity: .45; }
-  .section-head { font-size: 21px; font-weight: 750; margin: 6px 0 2px; color: var(--text); }
-  .discover-search { margin-bottom: 26px; }
-  @media (max-width: 991.98px) { .filter-box { margin-bottom: 4px; } }
+  .section-head { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
+  .strip .card-img-top { height: 200px; }
 </style>
 
 <div class="container-fluid discover py-4">
-  <div class="d-flex flex-wrap justify-content-between align-items-end mb-4">
-    <div>
-      <p class="text-uppercase small font-weight-bold mb-1" style="color:var(--accent);letter-spacing:.1em">Find your next favorite</p>
-      <h1 class="section-head mb-0">Movies</h1>
-    </div>
-    <a class="small font-weight-bold" href="{% url 'nearby_theaters' %}"><i class="fas fa-map-marker-alt mr-1" aria-hidden="true"></i>Find cinemas nearby</a>
-  </div>
   <div class="row justify-content-center mb-4">
     <div class="col-lg-8">
-      <div class="input-group input-group-lg discover-search">
+      <div class="input-group input-group-lg">
         {{form.q}}
         <div class="input-group-append">
-          <button class="btn btn-primary" type="submit" form="filter-form"><i class="fas fa-search mr-1" aria-hidden="true"></i>Search</button>
+          <button class="btn btn-primary" type="submit" form="filter-form">Search</button>
         </div>
       </div>
     </div>
@@ -77,11 +78,8 @@
         <div class="checks">{{form.timing}}</div>
         <h6>Show date</h6>
         {{form.show_date}}
-        <h6>Release Date</h6>
-        <div class="d-flex">
-          <div class="mr-1">{{form.release_from}}</div>
-          <div>{{form.release_to}}</div>
-        </div>
+        <h6>Release date</h6>
+        <div class="d-flex"><div class="mr-1">{{form.release_from}}</div><div>{{form.release_to}}</div></div>
         <h6>Minimum rating</h6>
         {{form.min_rating}}
         <noscript><button type="submit" class="btn btn-primary btn-sm mt-3">Apply filters</button></noscript>
@@ -149,3 +147,4 @@
 </script>
 
 {% endblock %}
+

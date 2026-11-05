@@ -24,7 +24,7 @@ from django.db.models import Count, DateField, F, Func, IntegerField, Q, Sum, Va
 from django.db.models.functions import ExtractHour, Trunc
 from django.utils import timezone
 
-from .models import Booking, Cancellation, Payment, PaymentRefund, Show
+from .models import Booking, Cancellation, Payment, Show
 
 GRANULARITIES = ("day", "week", "month", "year")
 ZERO = Decimal("0.00")
@@ -330,34 +330,6 @@ def cancellation_stats(f, bookings_count=None):
         failed=Count("id", filter=Q(refund_status=Cancellation.REFUND_FAILED)),
         failed_amount=Sum("refund_amount", filter=Q(refund_status=Cancellation.REFUND_FAILED)),
     )
-    payment_refunds = PaymentRefund.objects.filter(
-        created_at__gte=f.start, created_at__lt=f.end
-    ).aggregate(
-        total=Count("id"),
-        refund_total=Sum("amount"),
-        processed=Count("id", filter=Q(status=PaymentRefund.STATUS_SUCCESS)),
-        processed_amount=Sum("amount", filter=Q(status=PaymentRefund.STATUS_SUCCESS)),
-        pending=Count(
-            "id",
-            filter=Q(
-                status__in=[
-                    PaymentRefund.STATUS_PENDING,
-                    PaymentRefund.STATUS_QUEUED,
-                ]
-            ),
-        ),
-        pending_amount=Sum(
-            "amount",
-            filter=Q(
-                status__in=[
-                    PaymentRefund.STATUS_PENDING,
-                    PaymentRefund.STATUS_QUEUED,
-                ]
-            ),
-        ),
-        failed=Count("id", filter=Q(status=PaymentRefund.STATUS_FAILED)),
-        failed_amount=Sum("amount", filter=Q(status=PaymentRefund.STATUS_FAILED)),
-    )
     if bookings_count is None:
         bookings_count = _bookings(f).count()
     attempts = bookings_count + c["total"]
@@ -370,14 +342,13 @@ def cancellation_stats(f, bookings_count=None):
     return {
         "cancellations": c["total"],
         "cancellation_rate": round(100 * c["total"] / attempts, 2) if attempts else 0.0,
-        "refund_total": _money((c["refund_total"] or ZERO) + (payment_refunds["refund_total"] or ZERO)),
-        "refund_processed": c["processed"] + payment_refunds["processed"],
-        "refund_processed_amount": _money((c["processed_amount"] or ZERO) + (payment_refunds["processed_amount"] or ZERO)),
-        "refund_pending": c["pending"] + payment_refunds["pending"],
-        "refund_pending_amount": _money((c["pending_amount"] or ZERO) + (payment_refunds["pending_amount"] or ZERO)),
-        "refund_failed": c["failed"] + payment_refunds["failed"],
-        "refund_failed_amount": _money((c["failed_amount"] or ZERO) + (payment_refunds["failed_amount"] or ZERO)),
-        "payment_refunds": payment_refunds["total"],
+        "refund_total": _money(c["refund_total"]),
+        "refund_processed": c["processed"],
+        "refund_processed_amount": _money(c["processed_amount"]),
+        "refund_pending": c["pending"],
+        "refund_pending_amount": _money(c["pending_amount"]),
+        "refund_failed": c["failed"],
+        "refund_failed_amount": _money(c["failed_amount"]),
         "payments_total": pay_total,
         "payments_success": pay.get(Payment.STATUS_SUCCESS, 0),
         "payments_failed": pay.get(Payment.STATUS_FAILED, 0),

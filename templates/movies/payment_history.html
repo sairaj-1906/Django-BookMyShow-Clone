@@ -16,7 +16,6 @@
           <th>Amount</th>
           <th>Status</th>
           <th>Transaction ID</th>
-          <th>Ticket</th>
           <th>Date</th>
         </tr>
       </thead>
@@ -38,17 +37,9 @@
             <!-- {% else %} -->
             <span class="badge badge-warning">Pending</span>
             <!-- {% endif %} -->
-            {% for refund in payment.refunds.all %}
-            <br><small class="text-muted">Refund {{refund.get_status_display}}{% if refund.razorpay_refund_id %}: {{refund.razorpay_refund_id}}{% endif %}</small>
-            {% endfor %}
           </td>
           <td>
             <small class="text-muted">{{payment.razorpay_payment_id|default:"-"}}<br>order: {{payment.razorpay_order_id}}</small>
-          </td>
-          <td>
-            {% if payment.status == "success" and payment.bookings.exists %}
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'download_ticket' payment.id %}">Download PDF</a>
-            {% else %}—{% endif %}
           </td>
           <td>{{payment.created_at|date:"d-M-Y"}} {{payment.created_at|date:"H:i"}}</td>
         </tr>
@@ -67,3 +58,4 @@
 </div>
 
 {% endblock %}
+

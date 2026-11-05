@@ -1,449 +1,172 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#ffffff" />
-    <title>{% block title %}BookMySeat · Movies, now showing{% endblock %}</title>
-    <script>
-      (function () {
-        try {
-          var savedTheme = localStorage.getItem("bookmyseat-theme");
-          var theme = savedTheme === "dark" || savedTheme === "light"
-            ? savedTheme
-            : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-          document.documentElement.setAttribute("data-theme", theme);
-        } catch (error) {
-          document.documentElement.setAttribute("data-theme", "light");
-        }
-      })();
-    </script>
+    <title>{% block title %}BookMySeat{% endblock %}</title>
     <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css"
       rel="stylesheet"
     />
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
     />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
     />
     <style>
-      :root {
-        color-scheme: light;
-        --page: #f5f5f7;
-        --surface: #ffffff;
-        --surface-muted: #f8f8fa;
-        --text: #1c1c24;
-        --muted: #73737f;
-        --border: #e8e8ed;
-        --accent: #f84464;
-        --accent-hover: #dc3152;
-        --nav: #ffffff;
-        --footer: #202027;
-        --shadow: 0 8px 26px rgba(28, 28, 36, 0.08);
-      }
-
-      html[data-theme="dark"] {
-        color-scheme: dark;
-        --page: #121218;
-        --surface: #1c1c24;
-        --surface-muted: #24242e;
-        --text: #f3f3f6;
-        --muted: #aaaab7;
-        --border: #34343f;
-        --accent: #ff5574;
-        --accent-hover: #ff718b;
-        --nav: #1b1b22;
-        --footer: #0c0c11;
-        --shadow: 0 8px 26px rgba(0, 0, 0, 0.24);
-      }
-
-      * { box-sizing: border-box; }
       body {
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        background: var(--page);
-        color: var(--text);
-        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        line-height: 1.55;
-        transition: background-color .2s ease, color .2s ease;
+        font-family: Arial, sans-serif;
       }
-      a { color: var(--accent); }
-      a:hover { color: var(--accent-hover); }
-      .site-header {
-        position: sticky;
-        top: 0;
-        z-index: 1030;
-        background: var(--nav);
-        border-bottom: 1px solid var(--border);
-        box-shadow: 0 2px 12px rgba(20, 20, 30, .04);
+      .navbar {
+        background-color: #fff;
+        padding: 10px 20px;
       }
-      .site-navbar { min-height: 72px; }
-      .brand-mark {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 38px;
-        height: 38px;
-        margin-right: 10px;
-        border-radius: 12px;
-        background: var(--accent);
-        color: #fff;
-        font-size: 19px;
-        font-weight: 800;
-        letter-spacing: -1px;
-      }
-      .navbar-brand {
-        display: inline-flex;
-        align-items: center;
-        margin-right: 28px;
-        color: var(--text) !important;
-        font-size: 19px;
-        font-weight: 750;
-        letter-spacing: -.5px;
-      }
-      .navbar-brand:hover { color: var(--text) !important; }
-      .navbar-nav .nav-link {
-        padding: .65rem .8rem !important;
-        color: var(--muted);
-        font-size: 14px;
-        font-weight: 600;
-      }
-      .site-navbar .nav-link { color: var(--muted); font-size: 13px; font-weight: 600; }
-      .navbar-nav .nav-link:hover,
-      .navbar-nav .nav-link:focus,
-      .site-navbar .nav-link:hover,
-      .site-navbar .nav-link:focus { color: var(--accent); }
-      .nav-search {
-        position: relative;
-        width: min(34vw, 390px);
-        margin-right: auto;
-      }
-      .nav-search .form-control {
-        height: 42px;
-        padding-left: 40px;
-        border-radius: 8px;
-        font-size: 13px;
-      }
-      .nav-search-icon {
-        position: absolute;
-        top: 12px;
-        left: 14px;
-        z-index: 2;
-        color: var(--muted);
-      }
-      .theme-toggle {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 40px;
+      .navbar-brand img {
         height: 40px;
-        margin-left: 8px;
-        border: 1px solid var(--border);
-        border-radius: 50%;
-        background: var(--surface);
-        color: var(--text);
-        cursor: pointer;
-        transition: border-color .2s, transform .2s;
       }
-      .theme-toggle:hover { border-color: var(--accent); transform: translateY(-1px); }
-      .nav-cta {
-        margin-left: 10px;
-        padding: 8px 17px;
-        border-radius: 7px;
-        background: var(--accent);
-        color: #fff !important;
-        font-size: 13px;
-        font-weight: 700;
+      .navbar-nav .nav-link {
+        color: #000;
       }
-      .nav-cta:hover { background: var(--accent-hover); }
-      .navbar-toggler { border-color: var(--border); color: var(--text); }
-      .navbar-toggler-icon {
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%2373737f' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+      .banner {
+        background-color: #f8f9fa;
+        padding: 20px;
+        text-align: center;
       }
-      .site-main { flex: 1; width: 100%; }
-      .site-main > .container { max-width: 1280px; }
-      .footer {
-        margin-top: 64px;
-        padding: 44px 0 24px;
-        background: var(--footer);
-        color: #f4f4f7;
+      .banner img {
+        max-width: 100%;
+        height: auto;
       }
-      .footer-brand { color: #fff; font-size: 18px; font-weight: 750; }
-      .footer p, .footer .footer-note { color: #b7b7c1; font-size: 13px; }
-      .footer h6 { margin-bottom: 14px; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-      .footer a { color: #d3d3dc; font-size: 13px; }
-      .footer a:hover { color: #fff; text-decoration: none; }
-      .footer-rule { border-color: rgba(255,255,255,.12); }
       .section-title {
-        margin: 30px 0 18px;
-        color: var(--text);
-        font-size: 22px;
-        font-weight: 750;
-        letter-spacing: -.4px;
+        font-size: 24px;
+        font-weight: bold;
+        margin: 20px 0;
       }
-      .card, .list-group-item, .modal-content, .dropdown-menu {
-        border-color: var(--border);
-        background-color: var(--surface);
-        color: var(--text);
+      .card img {
+        height: 200px;
+        object-fit: cover;
       }
-      .card { border-radius: 12px; box-shadow: 0 3px 14px rgba(20,20,30,.04); }
-      .card-header { border-color: var(--border); }
-      .movie-card {
-        overflow: hidden;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        color: var(--text);
-        box-shadow: none;
-        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+      .footer {
+        background-color: #343a40;
+        color: #f8f9fa;
+        padding: 20px 0;
       }
-      .movie-card:hover {
-        transform: translateY(-5px);
-        border-color: transparent;
-        color: var(--text);
-        box-shadow: var(--shadow);
+      .footer a {
+        color: #f8f9fa;
+        text-decoration: none;
       }
-      .movie-poster {
-        position: relative;
-        overflow: hidden;
-        aspect-ratio: 2 / 3;
-        background: var(--surface-muted);
+      .footer a:hover {
+        text-decoration: underline;
       }
-      .movie-poster > img { width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease; }
-      .movie-card:hover .movie-poster > img { transform: scale(1.035); }
-      .movie-poster-placeholder {
-        display: flex;
-        width: 100%;
-        height: 100%;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        gap: 8px;
-        color: var(--muted);
+      .footer .social-icons i {
+        font-size: 24px;
+        margin: 0 10px;
+        transition: color 0.3s;
       }
-      .movie-poster-placeholder i { font-size: 34px; }
-      .movie-poster-placeholder span { font-size: 11px; }
-      .movie-cert {
-        position: absolute;
-        right: 10px;
-        bottom: 10px;
-        padding: 4px 7px;
-        border: 1px solid rgba(255,255,255,.55);
-        border-radius: 4px;
-        background: rgba(15,15,20,.62);
-        color: #fff;
-        font-size: 10px;
-        font-weight: 700;
-      }
-      .movie-card .card-body { padding: 14px; }
-      .movie-title {
-        display: -webkit-box;
-        overflow: hidden;
-        min-height: 42px;
-        margin: 0 0 7px;
-        color: var(--text);
-        font-size: 15px;
-        font-weight: 700;
-        line-height: 1.4;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-      }
-      .movie-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
-      .movie-rating { color: #e9a324; font-weight: 700; }
-      .movie-card-foot {
-        display: flex;
-        min-height: 32px;
-        align-items: center;
-        justify-content: space-between;
-        margin-top: 12px;
-        padding-top: 9px;
-        border-top: 1px solid var(--border);
-      }
-      .movie-price { color: var(--text); font-size: 12px; font-weight: 700; }
-      .movie-no-shows { color: var(--muted); font-size: 11px; }
-      .movie-card-arrow { color: var(--accent); font-size: 12px; }
-      .form-control, .custom-select {
-        border-color: var(--border);
-        background-color: var(--surface);
-        color: var(--text);
-      }
-      .form-control:focus, .custom-select:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 .2rem rgba(248,68,100,.14);
-        background-color: var(--surface);
-        color: var(--text);
-      }
-      .form-control::placeholder { color: var(--muted); }
-      .btn-primary, .page-item.active .page-link {
-        border-color: var(--accent);
-        background-color: var(--accent);
-      }
-      .btn-primary:hover, .btn-primary:focus {
-        border-color: var(--accent-hover);
-        background-color: var(--accent-hover);
-      }
-      .btn-outline-primary { border-color: var(--accent); color: var(--accent); }
-      .btn-outline-primary:hover { border-color: var(--accent); background: var(--accent); color: #fff; }
-      .badge-light, .bg-light { background-color: var(--surface-muted) !important; color: var(--text) !important; }
-      .text-dark { color: var(--text) !important; }
-      .text-muted { color: var(--muted) !important; }
-      .alert-info, .alert-secondary { border-color: var(--border); background: var(--surface-muted); color: var(--text); }
-      .page-link { border-color: var(--border); background: var(--surface); color: var(--accent); }
-      .table { color: var(--text); }
-      html[data-theme="dark"] .table thead th,
-      html[data-theme="dark"] .table td,
-      html[data-theme="dark"] .table th { border-color: var(--border); }
-      html[data-theme="dark"] .border,
-      html[data-theme="dark"] .border-bottom,
-      html[data-theme="dark"] .border-top { border-color: var(--border) !important; }
-      html[data-theme="dark"] .jumbotron { background: var(--surface); }
-      html[data-theme="dark"] body { background: var(--page) !important; color: var(--text) !important; }
-      html[data-theme="dark"] .input-group-text { border-color: var(--border); background: var(--surface-muted); color: var(--muted); }
-      html[data-theme="dark"] .theatre-info { border: 1px solid var(--border); background: var(--surface) !important; color: var(--text); }
-      html[data-theme="dark"] .time-box { border-color: var(--border); background: var(--surface-muted) !important; color: var(--text); }
-      html[data-theme="dark"] .time-box:hover { background: var(--accent) !important; color: #fff; }
-      html[data-theme="dark"] .seat.available { border-color: var(--border); background: var(--surface-muted) !important; color: var(--text); }
-      html[data-theme="dark"] .seat.sold { border-color: #494954; background: #494954 !important; color: #dedee4; }
-      html[data-theme="dark"] .screen { border-color: var(--border); background: var(--surface-muted) !important; color: var(--muted); }
-      html[data-theme="dark"] form input,
-      html[data-theme="dark"] form select,
-      html[data-theme="dark"] form textarea { border-color: var(--border) !important; background-color: var(--surface) !important; color: var(--text) !important; }
-      @media (max-width: 991.98px) {
-        .site-navbar { padding-top: 10px; padding-bottom: 10px; }
-        .navbar-collapse { padding: 12px 0 4px; }
-        .nav-search { width: 100%; margin: 8px 0 12px; }
-        .navbar-nav .nav-link { padding-left: 0 !important; }
-        .nav-cta { display: inline-block; margin: 8px 0; }
-        .theme-toggle { margin: 8px 0; }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+      .footer .social-icons i:hover {
+        color: #28a745;
       }
     </style>
-    {% block extra_head %}{% endblock %}
   </head>
   <body>
-    <header class="site-header">
-      <nav class="navbar navbar-expand-lg site-navbar">
-        <div class="container">
-          <a class="navbar-brand" href="{% url 'home' %}" aria-label="BookMySeat home">
-            <span class="brand-mark" aria-hidden="true">B</span>BookMySeat
-          </a>
-          <button
-            class="navbar-toggler"
-            type="button"
-            aria-controls="siteNavigation"
-            aria-expanded="false"
-            aria-label="Toggle navigation"
-          >
-            <span class="navbar-toggler-icon"></span>
-          </button>
-          <div class="collapse navbar-collapse" id="siteNavigation">
-            <ul class="navbar-nav mr-lg-3">
-              <li class="nav-item"><a class="nav-link" href="{% url 'movie_list' %}">Movies</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'nearby_theaters' %}">Cinemas</a></li>
-            </ul>
-            <form class="nav-search" method="get" action="{% url 'movie_list' %}" role="search">
-              <i class="fas fa-search nav-search-icon" aria-hidden="true"></i>
-              <input class="form-control" type="search" name="search" placeholder="Search for movies, events, plays..." aria-label="Search movies" />
-            </form>
-            <div class="d-flex align-items-center flex-wrap">
-              <button class="theme-toggle" type="button" id="theme-toggle" aria-label="Switch to dark mode" title="Switch theme">
-                <i class="fas fa-moon" aria-hidden="true"></i>
-              </button>
-              {% if user.is_authenticated %}
-              <a class="nav-link" href="{% url 'profile' %}"><i class="far fa-user mr-1" aria-hidden="true"></i>{{ user.username }}</a>
-              <form method="post" action="{% url 'logout' %}" class="d-inline">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+      <div class="container">
+        <a class="navbar-brand" href="/"
+          ><img
+            src="data:image/jpeg;base64,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Nt7fObnmCt+8njhQnatL3kXivHDQYUb0koCAN28HBHAjkjHku7TtW6vslFVP9OWFrnd+N6uVnmsOE1mLutRekdIlg6w08dQUkMcc4hmhcXMc4ZaQRgg/JYvTtp9u13+JeZmOYlztu6ONmUOuVftsByY4G7OfZk/ooow+r082/wDMcYqfV3NFRU9FTMp6SMRRMGGtarHER0c/ky3y27d55l7jdu5I0U/riu8u1PVFrssgxA3/AI8fmSquWebO02nD3ekrz58y0KjeiICAgICAsSCyCAgICAgICAgICAgILV0XeLYLJQ0IrohURxBro3nZOfZnj4K1S1eOHH7lps86i+SaTxMupznmpHkykBBKMsO6VTaKgqap53RRl3jjcsW8I5SYcc5MlaR5yo2R7pHvkecue4ucfaTkqk+gRWKxFY8nyjIgICAgIIWJErIICAgICAgICAgICAgggHiAe9GeZZ9uvFztuPIa2eNo4R7W03/xOR8FtF7R0Vs2k0+b8SkT+7qLd0iVcYDa+ljmHN8Xmn4cFJXNPnDys2xY5/Dtx8XS2/Wtmrdzqh1O/smbgfHgpYy1l5WbaNVj6RzH5MHpEucbbE2GCVj/ACmQAljgRsjeeC0y28PBPs+mt/kTa0ccR+qslXdWICAgICAgICAgICAgICAgICAgICAgICyc8CwHZ7EY4EZEBAQEBAQEBAQEBAQEBAQEEIJQEBAQEBAQEBAQEBAQEBAQEBAQEEBAQSgICAgICAghBKAgICAgICAgICAgICAgICAgICAgICAghBKAgICAgICAgICAgICAg//Z"
+            alt="logo"
+            height="40"
+            width="45"
+          />
+          BookMySeat</a
+        >
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-toggle="collapse"
+          data-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ml-auto">
+            {% if user.is_authenticated %}
+            <li class="nav-item">
+              <a class="nav-link" href="/">Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/movies">Movies</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'profile' %}">Profile</a>
+            </li>
+            <li class="nav-item">
+              <form method="Post" action="{% url 'logout' %}">
                 {% csrf_token %}
-                <button class="btn btn-link nav-link" type="submit">Log out</button>
+                <button
+                  type="submit"
+                  class="nav-link"
+                  style="border: none; background: none"
+                >
+                  Logout
+                </button>
               </form>
-              {% else %}
-              <a class="nav-link" href="{% url 'login' %}">Log in</a>
-              <a class="nav-cta" href="{% url 'register' %}">Sign up</a>
-              {% endif %}
+            </li>
+            {% else %}
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'login' %}">Login</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'register' %}">Register</a>
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">{% block content %} {% endblock %}</div>
+    <footer class="footer mt-5">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-4 mb-4 mb-md-0">
+            <h5>About Us</h5>
+            <p>
+              We provide the best movie experience in town. Book your tickets
+              now and enjoy the show!
+            </p>
+          </div>
+          <div class="col-md-4 mb-4 mb-md-0">
+            <h5>Quick Links</h5>
+            <ul class="list-unstyled">
+              <li><a href="#">Home</a></li>
+              <li><a href="#">Movies</a></li>
+              <li><a href="#">Book Tickets</a></li>
+              <li><a href="#">Contact</a></li>
+            </ul>
+          </div>
+          <div class="col-md-4">
+            <h5>Follow Us</h5>
+            <div class="social-icons">
+              <a href="#"><i class="fab fa-facebook"></i></a>
+              <a href="#"><i class="fab fa-twitter"></i></a>
+              <a href="#"><i class="fab fa-instagram"></i></a>
             </div>
           </div>
         </div>
-      </nav>
-    </header>
-
-    <main class="site-main">
-      <div class="container">{% block content %}{% endblock %}</div>
-    </main>
-
-    <footer class="footer">
-      <div class="container">
-        <div class="row">
-          <div class="col-lg-5 col-md-6 mb-4">
-            <div class="footer-brand mb-2"><span class="text-danger">B</span> BookMySeat</div>
-            <p class="mb-0">Your next great movie night starts here. Discover films, find a show, and book your seats.</p>
-          </div>
-          <div class="col-lg-3 col-md-3 col-6 mb-4">
-            <h6>Explore</h6>
-            <ul class="list-unstyled mb-0">
-              <li class="mb-2"><a href="{% url 'movie_list' %}">Movies</a></li>
-              <li class="mb-2"><a href="{% url 'nearby_theaters' %}">Cinemas nearby</a></li>
-            </ul>
-          </div>
-          <div class="col-lg-3 col-md-3 col-6 mb-4">
-            <h6>Your account</h6>
-            <ul class="list-unstyled mb-0">
-              {% if user.is_authenticated %}
-              <li class="mb-2"><a href="{% url 'profile' %}">My profile</a></li>
-              <li class="mb-2"><a href="{% url 'payment_history' %}">Bookings &amp; payments</a></li>
-              {% else %}
-              <li class="mb-2"><a href="{% url 'login' %}">Log in</a></li>
-              <li class="mb-2"><a href="{% url 'register' %}">Create an account</a></li>
-              {% endif %}
-            </ul>
-          </div>
-        </div>
-        <hr class="footer-rule" />
-        <div class="d-flex flex-wrap justify-content-between">
-          <span class="footer-note">&copy; {% now "Y" %} BookMySeat. Made for movie lovers.</span>
-          <span class="footer-note">The show begins with you.</span>
+        <hr class="mt-4 mb-4" />
+        <div class="text-center">
+          <p>&copy; 2024 Cinema Booking. All rights reserved.</p>
         </div>
       </div>
     </footer>
-    <script>
-      (function () {
-        var navButton = document.querySelector(".navbar-toggler");
-        var navigation = document.getElementById("siteNavigation");
-        if (navButton && navigation) {
-          navButton.addEventListener("click", function () {
-            var expanded = navButton.getAttribute("aria-expanded") === "true";
-            navButton.setAttribute("aria-expanded", String(!expanded));
-            navigation.classList.toggle("show", !expanded);
-          });
-        }
-
-        var root = document.documentElement;
-        var button = document.getElementById("theme-toggle");
-        if (!button) return;
-        function updateButton() {
-          var dark = root.getAttribute("data-theme") === "dark";
-          button.innerHTML = dark
-            ? '<i class="fas fa-sun" aria-hidden="true"></i>'
-            : '<i class="fas fa-moon" aria-hidden="true"></i>';
-          button.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
-        }
-        button.addEventListener("click", function () {
-          var theme = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
-          root.setAttribute("data-theme", theme);
-          try {
-            localStorage.setItem("bookmyseat-theme", theme);
-          } catch (error) {
-            // The chosen theme still applies for this page when storage is unavailable.
-          }
-          updateButton();
-        });
-        updateButton();
-      })();
-    </script>
-    {% block extra_js %}{% endblock %}
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
   </body>
 </html>

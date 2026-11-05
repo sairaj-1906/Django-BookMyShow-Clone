@@ -1,6 +1,5 @@
 asgiref
 dj-database-url
-python-dotenv
 Django
 gunicorn
 psycopg2-binary
@@ -8,6 +7,3 @@ sqlparse
 typing_extensions
 Pillow
 razorpay
-celery[redis]
-reportlab
-qrcode[pil]

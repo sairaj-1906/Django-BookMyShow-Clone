@@ -28,9 +28,8 @@ from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Permission, User
 from django.core.management.base import BaseCommand, CommandError
-from django.db import connection
 from django.utils import timezone
 
 from movies.models import (
@@ -132,11 +131,7 @@ class Command(BaseCommand):
         parser.add_argument("--days", type=int, default=365, help="History window in days.")
         parser.add_argument("--reset", action="store_true", help="Delete previously seeded data first.")
         parser.add_argument("--seed", type=int, default=42, help="Random seed (reproducible data).")
-        parser.add_argument(
-            "--confirm-nonlocal",
-            action="store_true",
-            help="Allow seeding a non-SQLite database after verifying it is a safe test database.",
-        )
+        parser.add_argument("--admin-password", default="DashAdmin#2026")
         parser.add_argument(
             "--clear",
             action="store_true",
@@ -170,6 +165,34 @@ class Command(BaseCommand):
         Theater.objects.filter(id__in=theater_ids).delete()
         User.objects.filter(email__endswith=EMAIL_SUFFIX).delete()
 
+    def _create_demo_staff(self, password):
+        perm = Permission.objects.get(codename="view_dashboard", content_type__app_label="movies")
+        admin, _ = User.objects.get_or_create(
+            username="dashboard_admin",
+            defaults={"email": "dashboard_admin@example.com", "is_staff": True, "is_superuser": True},
+        )
+        admin.is_staff = admin.is_superuser = True
+        admin.set_password(password)
+        admin.save()
+
+        analyst, _ = User.objects.get_or_create(
+            username="analyst", defaults={"email": "analyst@example.com", "is_staff": True}
+        )
+        analyst.is_staff = True
+        analyst.is_superuser = False
+        analyst.set_password(password)
+        analyst.save()
+        analyst.user_permissions.set([perm])
+
+        nopriv, _ = User.objects.get_or_create(
+            username="staff_noaccess", defaults={"email": "staff_noaccess@example.com", "is_staff": True}
+        )
+        nopriv.is_staff = True
+        nopriv.is_superuser = False
+        nopriv.set_password(password)
+        nopriv.save()
+        nopriv.user_permissions.clear()
+
     # ------------------------------------------------------------------- main
     def _fix_posters(self):
         movies = list(Movie.objects.filter(tagline=MARK).order_by("id"))
@@ -179,11 +202,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"Generated placeholder posters for {len(movies)} seeded movies."))
 
     def handle(self, *args, **opts):
-        if connection.vendor != "sqlite" and not opts["confirm_nonlocal"]:
-            raise CommandError(
-                "Refusing to seed a non-SQLite database. Verify the target is a disposable "
-                "test database, then pass --confirm-nonlocal."
-            )
         if opts["fix_posters"]:
             return self._fix_posters()
         if opts["clear"]:
@@ -208,7 +226,7 @@ class Command(BaseCommand):
 
         # ---- users: signups accelerate over time (recent days have more signups)
         self.stdout.write("Creating users...")
-        pw_hash = make_password(None)
+        pw_hash = make_password("seed-user-password")
         joins = sorted(now - timedelta(days=days + 30) * (rng.random() ** 1.6) for _ in range(opts["users"]))
         users = User.objects.bulk_create(
             [
@@ -328,7 +346,6 @@ class Command(BaseCommand):
                             razorpay_order_id=f"order_seed_{order_counter:08d}",
                             razorpay_payment_id=f"pay_seed_{order_counter:08d}",
                             status=Payment.STATUS_SUCCESS,
-                            ticket_email_status=Payment.EMAIL_SKIPPED,
                             paid_at=paid_at,
                             created_at=booked_at,
                             updated_at=paid_at,
@@ -412,8 +429,10 @@ class Command(BaseCommand):
             )
             self.stdout.flush()
 
+        self._create_demo_staff(opts["admin_password"])
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS("Seeding complete:"))
         for key, value in totals.items():
             self.stdout.write(f"  {key:14s} {value:>10,}")
         self.stdout.write(f"  {'users':14s} {len(user_ids):>10,}")
+        self.stdout.write("Demo staff accounts created: dashboard_admin / analyst / staff_noaccess")

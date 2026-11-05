@@ -34,19 +34,6 @@ def create_order(amount_in_paise, currency="INR", receipt=None, notes=None):
     )
 
 
-def create_refund(payment_id, amount_in_paise, receipt, notes=None):
-    """Request a provider-side refund with a stable receipt for retry safety."""
-    client = get_client()
-    return client.payment.refund(
-        payment_id,
-        {
-            "amount": amount_in_paise,
-            "receipt": receipt,
-            "notes": notes or {},
-        },
-    )
-
-
 def verify_payment_signature(order_id, payment_id, signature):
     """Verify the signature Razorpay's checkout.js handed back to the browser after a
     successful payment. Raised PaymentVerificationError if it check out."""

@@ -12,35 +12,23 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+from typing import Any, cast
 import dj_database_url
-from django.core.exceptions import ImproperlyConfigured
-from dotenv import load_dotenv
-
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
-if not SECRET_KEY:
-    if not DEBUG:
-        raise ImproperlyConfigured(
-            "DJANGO_SECRET_KEY must be configured when DEBUG is false."
-        )
-    SECRET_KEY = "local-development-only-do-not-use-in-production"
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = "django-insecure-c8aetlj(=vp90n@#yoc^&d(_6ivp(d!bv-4-f!r$lawptjzrwu"
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.environ.get(
-        "ALLOWED_HOSTS", ".vercel.app,127.0.0.1,localhost"
-    ).split(",")
-    if host.strip()
-]
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
+
+ALLOWED_HOSTS = [".vercel.app", "127.0.0.1", "localhost"]
 
 
 # Application definition
@@ -67,50 +55,7 @@ MIDDLEWARE = [
 ]
 
 AUTH_USER_MODEL = "auth.User"
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
-)
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.environ.get(
-    "DEFAULT_FROM_EMAIL", "BookMySeat <tickets@bookmyseat.example>"
-)
-PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://127.0.0.1:8000")
-
-CELERY_BROKER_URL = os.environ.get(
-    "CELERY_BROKER_URL", "redis://127.0.0.1:6379/0"
-)
-CELERY_BROKER_CONNECTION_TIMEOUT = 2
-CELERY_TASK_SERIALIZER = "json"
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_BEAT_SCHEDULE = {
-    "release-expired-seat-holds": {
-        "task": "movies.tasks.release_expired_seat_holds",
-        "schedule": 30.0,
-    },
-    "enqueue-pending-ticket-emails": {
-        "task": "movies.tasks.enqueue_pending_ticket_emails",
-        "schedule": 60.0,
-    },
-    "enqueue-pending-payment-refunds": {
-        "task": "movies.tasks.enqueue_pending_payment_refunds",
-        "schedule": 60.0,
-    },
-}
-
-TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "")
-TMDB_ACCESS_TOKEN = os.environ.get("TMDB_ACCESS_TOKEN", "")
-TMDB_API_TIMEOUT = float(os.environ.get("TMDB_API_TIMEOUT", "15"))
-OSM_OVERPASS_URL = os.environ.get(
-    "OSM_OVERPASS_URL", "https://overpass-api.de/api/interpreter"
-)
-OSM_OVERPASS_TIMEOUT = float(os.environ.get("OSM_OVERPASS_TIMEOUT", "25"))
-# Set this to a dotted path for an authorized ticketing/exhibitor adapter.
-SHOWTIME_PROVIDER = os.environ.get("SHOWTIME_PROVIDER", "")
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
@@ -152,18 +97,18 @@ WSGI_APPLICATION = "bookmymovie.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASE_URL = os.environ.get("postgresql://django_bookmyshow_pl33_user:dR5RfE7nNFu93b5k98KqdeD8vtTJd6mi@dpg-dbkrra15efls73fg61fg-a.ohio-postgres.render.com/django_bookmyshow_pl33")
-if DATABASE_URL:
-    DATABASES = {
-        "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+}
+
+# DATABASES['default'] = cast(
+#     dict[str, Any],
+#     dj_database_url.parse('postgresql://django_bookmyshow_qvm8_user:DIKZYRFNOhfLirRZGkUwrsxoUIzHULPy@dpg-dadtv0qd0e5s73ebvaug-a.oregon-postgres.render.com/django_bookmyshow_qvm8'),
+# )
+#
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

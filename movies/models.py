@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
-from django.db import models, transaction
+from django.db import models
 from django.db.models import Avg, Count
 from django.utils import timezone
 
@@ -91,15 +91,7 @@ class Movie(models.Model):
 
     name = models.CharField(max_length=255)
     tagline = models.CharField(max_length=255, blank=True)
-    image = models.ImageField(
-        upload_to="movies/", blank=True, help_text="Primary poster image"
-    )
-    tmdb_id = models.PositiveIntegerField(
-        unique=True, null=True, blank=True, help_text="Movie Database (TMDb) movie ID"
-    )
-    poster_url = models.URLField(
-        blank=True, help_text="External poster URL supplied by TMDb"
-    )
+    image = models.ImageField(upload_to="movies/", help_text="Primary poster image")
     description = models.TextField(blank=True, null=True)
     duration_minutes = models.PositiveIntegerField(
         default=0, help_text="Runtime in minutes"
@@ -146,14 +138,6 @@ class Movie(models.Model):
 
     def __str__(self):
         return self.name
-
-    @property
-    def poster_display_url(self):
-        if self.poster_url:
-            return self.poster_url
-        if self.image:
-            return self.image.url
-        return ""
 
     def save(self, *args, **kwargs):
         if self.trailer_youtube_id:
@@ -287,7 +271,6 @@ class Show(models.Model):
     screen_format = models.CharField(
         max_length=10, choices=FORMAT_CHOICES, default=FORMAT_2D
     )
-    screen_name = models.CharField(max_length=100, default="Screen 1")
     date_time = models.DateTimeField()
     price = models.DecimalField(max_digits=8, decimal_places=2, default=200)
 
@@ -389,18 +372,6 @@ class Payment(models.Model):
         (STATUS_FAILED, "Failed"),
         (STATUS_CANCELLED, "Cancelled"),
     ]
-    EMAIL_PENDING = "pending"
-    EMAIL_QUEUED = "queued"
-    EMAIL_SENT = "sent"
-    EMAIL_FAILED = "failed"
-    EMAIL_SKIPPED = "skipped"
-    EMAIL_STATUS_CHOICES = [
-        (EMAIL_PENDING, "Pending"),
-        (EMAIL_QUEUED, "Queued"),
-        (EMAIL_SENT, "Sent"),
-        (EMAIL_FAILED, "Failed"),
-        (EMAIL_SKIPPED, "Skipped"),
-    ]
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="payments"
@@ -434,11 +405,6 @@ class Payment(models.Model):
         blank=True,
         help_text="When the payment was confirmed as successful (used for revenue reports).",
     )
-    ticket_email_status = models.CharField(
-        max_length=10, choices=EMAIL_STATUS_CHOICES, default=EMAIL_PENDING
-    )
-    ticket_email_queued_at = models.DateTimeField(null=True, blank=True)
-    ticket_email_sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -505,14 +471,11 @@ class Booking(models.Model):
         return None
 
     def has_been_watched(self):
-        """Only a paid booking with a known, completed showtime counts as watched."""
+        """A booking counts as 'watched' once its showtime has passed."""
         when = self.show_datetime
-        return bool(
-            self.payment_id
-            and self.payment.status == Payment.STATUS_SUCCESS
-            and when is not None
-            and timezone.now() >= when
-        )
+        if when is None:
+            return True  # legacy booking with no known showtime — don't block reviewing
+        return timezone.now() >= when
 
 
 class MovieView(models.Model):
@@ -609,23 +572,13 @@ class Review(models.Model):
         return self.reports.count()
 
     def save(self, *args, **kwargs):
-        self.is_verified_viewer = bool(
-            self.booking_id
-            and self.booking.user_id == self.user_id
-            and self.booking.movie_id == self.movie_id
-            and self.booking.has_been_watched()
-        )
-        with transaction.atomic():
-            movie = Movie.objects.select_for_update().get(pk=self.movie_id)
-            super().save(*args, **kwargs)
-            movie.recalculate_rating()
+        super().save(*args, **kwargs)
+        self.movie.recalculate_rating()
 
     def delete(self, *args, **kwargs):
         movie = self.movie
-        with transaction.atomic():
-            Movie.objects.select_for_update().get(pk=movie.pk)
-            super().delete(*args, **kwargs)
-            movie.recalculate_rating()
+        super().delete(*args, **kwargs)
+        movie.recalculate_rating()
 
 
 class ReviewReport(models.Model):
@@ -657,42 +610,3 @@ class ReviewReport(models.Model):
 
     def __str__(self):
         return f"Report on review #{self.review_id} by {self.reported_by}"
-
-
-class PaymentRefund(models.Model):
-    STATUS_PENDING = "pending"
-    STATUS_QUEUED = "queued"
-    STATUS_SUCCESS = "success"
-    STATUS_FAILED = "failed"
-    STATUS_CHOICES = [
-        (STATUS_PENDING, "Pending"),
-        (STATUS_QUEUED, "Queued"),
-        (STATUS_SUCCESS, "Success"),
-        (STATUS_FAILED, "Failed"),
-    ]
-
-    payment = models.ForeignKey(
-        Payment, on_delete=models.CASCADE, related_name="refunds"
-    )
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=10, default="INR")
-    idempotency_key = models.CharField(max_length=100, unique=True)
-    razorpay_refund_id = models.CharField(
-        max_length=100, blank=True, null=True, unique=True
-    )
-    status = models.CharField(
-        max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING
-    )
-    reason = models.CharField(max_length=255, blank=True)
-    failure_reason = models.CharField(max_length=255, blank=True)
-    queued_at = models.DateTimeField(null=True, blank=True)
-    submitted_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [models.Index(fields=["status", "created_at"], name="refund_status_created_idx")]
-
-    def __str__(self):
-        return f"Refund {self.razorpay_refund_id or self.idempotency_key} ({self.status})"

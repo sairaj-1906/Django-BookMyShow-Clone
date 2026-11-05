@@ -4,7 +4,6 @@ from . import views
 
 urlpatterns = [
     path("", views.movie_list, name="movie_list"),
-    path("theaters/nearby/", views.nearby_theaters, name="nearby_theaters"),
     path("<int:movie_id>/", views.movie_detail, name="movie_detail"),
     path("<int:movie_id>/theaters/", views.show_list, name="theater_list"),
     path("<int:movie_id>/reviews/submit/", views.submit_review, name="submit_review"),
@@ -26,16 +25,6 @@ urlpatterns = [
     ),
     path("payments/webhook/razorpay/", views.razorpay_webhook, name="razorpay_webhook"),
     path("payments/history/", views.payment_history, name="payment_history"),
-    path(
-        "tickets/<int:payment_id>/download/",
-        views.download_ticket,
-        name="download_ticket",
-    ),
-    path(
-        "tickets/<int:payment_id>/verify/",
-        views.verify_ticket,
-        name="verify_ticket",
-    ),
     path(
         "theater/<int:theater_id>/seats/book/",
         views.book_seats_legacy,

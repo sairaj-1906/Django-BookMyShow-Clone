@@ -1,8 +1,6 @@
 import json
 import logging
-import math
 import time
-from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.paginator import Paginator
@@ -18,104 +16,18 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .catalog_integrations import CatalogIntegrationError, find_nearby_theaters
 from . import discovery
 from .forms import ReviewForm, ReviewReportForm
-from .models import (
-    Booking,
-    Movie,
-    Payment,
-    PaymentRefund,
-    Review,
-    Seat,
-    SeatHold,
-    Show,
-    Theater,
-)
+from .models import Booking, Movie, Payment, Review, Seat, SeatHold, Show, Theater
 from .payments import (
     PaymentVerificationError,
     create_order,
     verify_payment_signature,
     verify_webhook_signature,
 )
-from .showtime_providers import (
-    get_showtime_provider,
-    parse_provider_date,
-    validate_provider_showtimes,
-)
-from .tickets import build_ticket_pdf, is_valid_ticket_token
-from .tasks import send_booking_ticket_email
-from .tasks import process_payment_refund
 
 
 logger = logging.getLogger(__name__)
-
-
-def _coordinates_from_query(request):
-    raw_latitude = request.GET.get("lat", "")
-    raw_longitude = request.GET.get("lng", "")
-    if not raw_latitude and not raw_longitude:
-        return None
-    try:
-        latitude, longitude = float(raw_latitude), float(raw_longitude)
-    except ValueError:
-        return None
-    if (
-        not math.isfinite(latitude)
-        or not math.isfinite(longitude)
-        or not -90 <= latitude <= 90
-        or not -180 <= longitude <= 180
-    ):
-        return None
-    return latitude, longitude
-
-
-def _queue_ticket_email(payment_id):
-    queued_at = timezone.now()
-    queued = Payment.objects.filter(
-        pk=payment_id,
-        status=Payment.STATUS_SUCCESS,
-        ticket_email_status=Payment.EMAIL_PENDING,
-    ).update(
-        ticket_email_status=Payment.EMAIL_QUEUED,
-        ticket_email_queued_at=queued_at,
-    )
-    if not queued:
-        return
-    try:
-        send_booking_ticket_email.delay(payment_id)
-    except Exception:
-        Payment.objects.filter(
-            pk=payment_id, ticket_email_status=Payment.EMAIL_QUEUED
-        ).update(
-            ticket_email_status=Payment.EMAIL_PENDING,
-            ticket_email_queued_at=None,
-        )
-        logger.exception(
-            "Could not queue ticket email for payment %s; it remains pending for retry",
-            payment_id,
-        )
-
-
-def _queue_payment_refund(refund_id):
-    queued_at = timezone.now()
-    queued = PaymentRefund.objects.filter(
-        pk=refund_id,
-        status=PaymentRefund.STATUS_PENDING,
-        submitted_at__isnull=True,
-    ).update(status=PaymentRefund.STATUS_QUEUED, queued_at=queued_at)
-    if not queued:
-        return
-    try:
-        process_payment_refund.delay(refund_id)
-    except Exception:
-        PaymentRefund.objects.filter(
-            pk=refund_id, status=PaymentRefund.STATUS_QUEUED
-        ).update(status=PaymentRefund.STATUS_PENDING, queued_at=None)
-        logger.exception(
-            "Could not queue refund %s; the refund remains pending for retry",
-            refund_id,
-        )
 
 
 def _run_atomic_with_retry(fn, attempts=5, base_delay=0.05):
@@ -192,13 +104,8 @@ def movie_detail(request, movie_id):
     if request.user.is_authenticated:
         user_review = movie.reviews.filter(user=request.user).first()
         eligible_booking = (
-            Booking.objects.filter(
-                user=request.user,
-                movie=movie,
-                payment__status=Payment.STATUS_SUCCESS,
-                show__date_time__lte=timezone.now(),
-            )
-            .order_by("-show__date_time", "-booked_at")
+            Booking.objects.filter(user=request.user, movie=movie)
+            .order_by("-booked_at")
             .first()
         )
         can_review = bool(eligible_booking and eligible_booking.has_been_watched())
@@ -229,13 +136,8 @@ def submit_review(request, movie_id):
         return redirect("movie_detail", movie_id=movie.id)
 
     eligible_booking = (
-        Booking.objects.filter(
-            user=request.user,
-            movie=movie,
-            payment__status=Payment.STATUS_SUCCESS,
-            show__date_time__lte=timezone.now(),
-        )
-        .order_by("-show__date_time", "-booked_at")
+        Booking.objects.filter(user=request.user, movie=movie)
+        .order_by("-booked_at")
         .first()
     )
     if not eligible_booking or not eligible_booking.has_been_watched():
@@ -256,14 +158,9 @@ def submit_review(request, movie_id):
         review.movie = movie
         review.user = request.user
         review.booking = eligible_booking
-        try:
-            review.save()
-        except IntegrityError:
-            messages.info(
-                request, "You've already reviewed this movie — you can edit it below."
-            )
-        else:
-            messages.success(request, "Thanks — your review has been saved.")
+        review.is_verified_viewer = True
+        review.save()
+        messages.success(request, "Thanks — your review has been saved.")
     else:
         messages.error(request, "Please correct the errors in your review.")
     return redirect("movie_detail", movie_id=movie.id)
@@ -317,75 +214,10 @@ def show_list(request, movie_id):
     )
     # Backward compatibility: surface any legacy Theater rows that were never migrated to Show.
     legacy_theaters = Theater.objects.filter(movie=movie, time__isnull=False)
-    provider_showtimes = []
-    provider_error = ""
-    provider_configured = bool(settings.SHOWTIME_PROVIDER)
-    coordinates = _coordinates_from_query(request)
-    if provider_configured and coordinates:
-        try:
-            provider = get_showtime_provider()
-            show_date = parse_provider_date(request.GET.get("show_date"))
-            provider_showtimes = validate_provider_showtimes(
-                provider.search_showtimes(
-                    movie=movie,
-                    latitude=coordinates[0],
-                    longitude=coordinates[1],
-                    show_date=show_date,
-                )
-            )
-            provider_showtimes = [
-                {
-                    "offer": offer,
-                    "starts_at_ist": timezone.localtime(
-                        offer.starts_at, ZoneInfo("Asia/Kolkata")
-                    ).strftime("%a, %d %b · %I:%M %p IST"),
-                }
-                for offer in provider_showtimes
-            ]
-        except Exception:
-            logger.exception("Configured showtime provider failed for movie %s", movie.pk)
-            provider_error = "Live provider showtimes are temporarily unavailable."
-    elif provider_configured and request.GET.get("lat"):
-        provider_error = "Please allow location access to find live showtimes."
-
     return render(
         request,
         "movies/theater_list.html",
-        {
-            "movie": movie,
-            "shows": shows,
-            "legacy_theaters": legacy_theaters,
-            "provider_showtimes": provider_showtimes,
-            "provider_error": provider_error,
-            "provider_configured": provider_configured,
-        },
-    )
-
-
-def nearby_theaters(request):
-    places = []
-    error = ""
-    has_location = bool(request.GET.get("lat") or request.GET.get("lng"))
-    coordinates = _coordinates_from_query(request)
-
-    if has_location and coordinates is None:
-        error = "A valid latitude and longitude are required."
-    elif coordinates:
-        try:
-            places = find_nearby_theaters(*coordinates)
-        except CatalogIntegrationError:
-            logger.exception("OpenStreetMap nearby cinema search failed")
-            error = "Nearby cinema discovery is temporarily unavailable."
-
-    return render(
-        request,
-        "movies/nearby_theaters.html",
-        {
-            "places": places,
-            "error": error,
-            "has_location": has_location,
-            "configured": True,
-        },
+        {"movie": movie, "shows": shows, "legacy_theaters": legacy_theaters},
     )
 
 
@@ -505,14 +337,8 @@ def hold_seats(request, show_id):
         for missing_id in set(seat_ids) - found_ids:
             unavailable.append(str(missing_id))
 
-        booked_ids = set(
-            Booking.objects.filter(seat_id__in=found_ids).values_list(
-                "seat_id", flat=True
-            )
-        )
-        seats_to_create = []
         for seat in seats:
-            if seat.is_booked or seat.id in booked_ids:
+            if seat.is_booked:
                 unavailable.append(seat.seat_number)
                 continue
 
@@ -530,19 +356,13 @@ def hold_seats(request, show_id):
             if existing_hold and existing_hold.user_id == request.user.id:
                 continue  # already held by this user — leave their original expiry in place
 
-            seats_to_create.append(seat)
-
-        if unavailable:
-            return
-
-        try:
-            with transaction.atomic():
-                for seat in seats_to_create:
-                    SeatHold.objects.create(
-                        seat=seat, show=show, user=request.user, expires_at=expires_at
-                    )
-        except IntegrityError:
-            unavailable.extend(seat.seat_number for seat in seats_to_create)
+            try:
+                SeatHold.objects.create(
+                    seat=seat, show=show, user=request.user, expires_at=expires_at
+                )
+            except IntegrityError:
+                # Someone else's hold slipped in between our check and our insert.
+                unavailable.append(seat.seat_number)
 
     try:
         _run_atomic_with_retry(_do_hold)
@@ -695,18 +515,11 @@ def _finalize_booking_for_payment(
     def _do():
         payment = (
             Payment.objects.select_for_update()
-            .select_related("show", "show__movie", "show__theater")
+            .select_related("show")
             .get(id=payment_id)
         )
         if payment.status == Payment.STATUS_SUCCESS:
             outcome["result"] = "already_processed"
-            pending_refund = payment.refunds.filter(
-                status=PaymentRefund.STATUS_PENDING
-            ).first()
-            if pending_refund:
-                transaction.on_commit(
-                    lambda: _queue_payment_refund(pending_refund.pk)
-                )
             return
 
         if razorpay_payment_id:
@@ -714,63 +527,36 @@ def _finalize_booking_for_payment(
         if razorpay_signature:
             payment.razorpay_signature = razorpay_signature
 
-        selected_ids = list(
-            payment.seats.order_by("id").values_list("id", flat=True)
-        )
-        seats = list(
-            Seat.objects.select_for_update()
-            .filter(id__in=selected_ids)
-            .order_by("id")
-        )
+        seats = list(Seat.objects.select_for_update().filter(payments=payment))
         failed = []
-        if (
-            not seats
-            or len(seats) != len(selected_ids)
-            or any(seat.show_id != payment.show_id for seat in seats)
-            or payment.amount != payment.show.price * len(selected_ids)
-        ):
-            failed.append("payment seat or amount mismatch")
-        existing_booking_ids = set(
-            Booking.objects.filter(seat_id__in=selected_ids).values_list(
-                "seat_id", flat=True
-            )
-        )
-        for seat in seats:
-            if seat.is_booked or seat.id in existing_booking_ids:
-                failed.append(seat.seat_number)
-
         created_bookings = []
-        if not failed:
-            try:
-                with transaction.atomic():
-                    for seat in seats:
-                        created_bookings.append(
-                            Booking.objects.create(
-                                user=payment.user,
-                                seat=seat,
-                                movie=payment.show.movie,
-                                theater=payment.show.theater,
-                                show=payment.show,
-                                payment=payment,
-                            )
-                        )
-            except IntegrityError:
-                created_bookings = []
-                failed.append("seat was booked concurrently")
-
         for seat in seats:
-            if not failed:
-                seat.is_booked = True
-                seat.save(update_fields=["is_booked"])
-        if failed:
-            _release_payment_holds(payment, [seat.pk for seat in seats])
-        else:
-            SeatHold.objects.filter(seat__in=seats, user=payment.user).delete()
+            if seat.is_booked:
+                failed.append(seat.seat_number)
+                continue
+            try:
+                booking = Booking.objects.create(
+                    user=payment.user,
+                    seat=seat,
+                    movie=payment.show.movie,
+                    theater=payment.show.theater,
+                    show=payment.show,
+                    payment=payment,
+                )
+            except IntegrityError:
+                failed.append(seat.seat_number)
+                continue
+            seat.is_booked = True
+            seat.save(update_fields=["is_booked"])
+            created_bookings.append(booking)
+
+        SeatHold.objects.filter(seat__in=seats, user=payment.user).delete()
+
         payment.status = Payment.STATUS_SUCCESS
         payment.paid_at = timezone.now()
         if failed:
             payment.failure_reason = (
-                f"Booking could not be completed: {', '.join(failed)}"
+                f"Seats already taken at confirmation time: {', '.join(failed)}"
             )[:255]
         payment.save(
             update_fields=[
@@ -783,24 +569,13 @@ def _finalize_booking_for_payment(
             ]
         )
 
-        if created_bookings:
-            transaction.on_commit(lambda: _queue_ticket_email(payment.pk))
-
-        if failed:
-            refund, _ = PaymentRefund.objects.get_or_create(
-                idempotency_key=f"booking-conflict-{payment.pk}",
-                defaults={
-                    "payment": payment,
-                    "amount": payment.amount,
-                    "currency": payment.currency,
-                    "reason": "Payment captured but all requested seats could not be booked",
-                },
-            )
-            transaction.on_commit(lambda: _queue_payment_refund(refund.pk))
-            outcome["result"] = "refund_pending"
-            outcome["refund_id"] = refund.pk
+        if failed and created_bookings:
+            outcome["result"] = "partial_failure"
+        elif failed:
+            outcome["result"] = "failure"
         else:
             outcome["result"] = "success"
+        outcome["failed"] = failed
 
     _run_atomic_with_retry(_do)
     return outcome
@@ -827,27 +602,11 @@ def _mark_payment_unsuccessful(payment_id, status, reason="", razorpay_payment_i
                 "updated_at",
             ]
         )
-        _release_payment_holds(
-            payment,
-            payment.seats.values_list("id", flat=True),
-        )
+        SeatHold.objects.filter(
+            seat__in=payment.seats.all(), user=payment.user
+        ).delete()
 
     _run_atomic_with_retry(_do)
-
-
-def _release_payment_holds(payment, seat_ids):
-    seat_ids = list(seat_ids)
-    if not seat_ids:
-        return
-    active_payment_seats = Payment.objects.filter(
-        user=payment.user,
-        show=payment.show,
-        status=Payment.STATUS_CREATED,
-        seats__id__in=seat_ids,
-    ).exclude(pk=payment.pk).values_list("seats__id", flat=True)
-    SeatHold.objects.filter(
-        show=payment.show, user=payment.user, seat_id__in=seat_ids
-    ).exclude(seat_id__in=active_payment_seats).delete()
 
 
 @login_required(login_url="/login/")
@@ -890,15 +649,28 @@ def verify_payment(request, payment_id):
 
     if result in ("success", "already_processed"):
         return JsonResponse({"success": True, "redirect_url": reverse("profile")})
-    if result == "refund_pending":
+    if result == "partial_failure":
         return JsonResponse(
             {
                 "success": True,
                 "redirect_url": reverse("profile"),
-                "warning": "Payment was received, but the seats could not be confirmed. A full refund has been requested and will appear in payment history.",
+                "warning": (
+                    f"Note: these seats were already taken by the time payment was confirmed: "
+                    f"{', '.join(outcome['failed'])}. Please contact support for a refund on those."
+                ),
             }
         )
-    return JsonResponse({"success": False, "error": "Payment could not be confirmed."}, status=409)
+    return JsonResponse(
+        {
+            "success": False,
+            "error": (
+                f"Sorry — these seats were already booked by someone else: "
+                f"{', '.join(outcome['failed'])}. Your payment was captured; please contact "
+                "support for a refund."
+            ),
+        },
+        status=409,
+    )
 
 
 @login_required(login_url="/login/")
@@ -934,51 +706,6 @@ def razorpay_webhook(request):
         return HttpResponse(status=400)
 
     event_type = event.get("event", "")
-    if event_type in ("refund.created", "refund.processed", "refund.failed"):
-        refund_entity = event.get("payload", {}).get("refund", {}).get("entity", {})
-        refund_id = refund_entity.get("id")
-        if refund_id:
-            receipt = refund_entity.get("receipt")
-            refund = PaymentRefund.objects.filter(
-                Q(razorpay_refund_id=refund_id)
-                | Q(idempotency_key=receipt)
-            ).first()
-            if refund:
-                with transaction.atomic():
-                    locked_refund = PaymentRefund.objects.select_for_update().get(
-                        pk=refund.pk
-                    )
-                    locked_refund.razorpay_refund_id = (
-                        refund_id or locked_refund.razorpay_refund_id
-                    )
-                    if event_type == "refund.processed":
-                        locked_refund.status = PaymentRefund.STATUS_SUCCESS
-                        locked_refund.failure_reason = ""
-                    elif event_type == "refund.failed":
-                        if locked_refund.status != PaymentRefund.STATUS_SUCCESS:
-                            locked_refund.status = PaymentRefund.STATUS_FAILED
-                            locked_refund.failure_reason = (
-                                refund_entity.get("failure_reason") or "Refund failed"
-                            )[:255]
-                    elif locked_refund.status not in (
-                        PaymentRefund.STATUS_SUCCESS,
-                        PaymentRefund.STATUS_FAILED,
-                    ):
-                        locked_refund.status = PaymentRefund.STATUS_PENDING
-                        locked_refund.queued_at = None
-                        locked_refund.submitted_at = timezone.now()
-                    locked_refund.save(
-                        update_fields=[
-                            "razorpay_refund_id",
-                            "status",
-                            "failure_reason",
-                            "queued_at",
-                            "submitted_at",
-                            "updated_at",
-                        ]
-                    )
-        return HttpResponse(status=200)
-
     payload_entity = event.get("payload", {}).get("payment", {}).get("entity", {})
     order_id = payload_entity.get("order_id")
     razorpay_payment_id = payload_entity.get("id")
@@ -1013,62 +740,10 @@ def payment_history(request):
     payments = (
         Payment.objects.filter(user=request.user)
         .select_related("show", "show__movie", "show__theater")
-        .prefetch_related("bookings", "refunds")
+        .prefetch_related("bookings")
         .order_by("-created_at")
     )
     return render(request, "movies/payment_history.html", {"payments": payments})
-
-
-@login_required(login_url="/login/")
-def download_ticket(request, payment_id):
-    payment = get_object_or_404(
-        Payment.objects.select_related(
-            "user", "show__movie", "show__theater", "show__language"
-        )
-        .prefetch_related("bookings__seat")
-        .filter(bookings__isnull=False)
-        .distinct(),
-        id=payment_id,
-        user=request.user,
-        status=Payment.STATUS_SUCCESS,
-    )
-    response = HttpResponse(build_ticket_pdf(payment), content_type="application/pdf")
-    response["Content-Disposition"] = (
-        f'attachment; filename="booking-{payment.id}-ticket.pdf"'
-    )
-    return response
-
-
-def verify_ticket(request, payment_id):
-    token = request.GET.get("token", "")
-    payment = get_object_or_404(
-        Payment.objects.select_related(
-            "show__movie", "show__theater", "show__language"
-        )
-        .prefetch_related("bookings__seat")
-        .filter(bookings__isnull=False)
-        .distinct(),
-        id=payment_id,
-        status=Payment.STATUS_SUCCESS,
-    )
-    if not is_valid_ticket_token(payment, token):
-        return render(
-            request,
-            "movies/ticket_verification.html",
-            {"valid": False},
-            status=404,
-        )
-    return render(
-        request,
-        "movies/ticket_verification.html",
-        {
-            "valid": True,
-            "payment": payment,
-            "show_time_ist": timezone.localtime(
-                payment.show.date_time, ZoneInfo("Asia/Kolkata")
-            ),
-        },
-    )
 
 
 @login_required(login_url="/login/")
