@@ -150,9 +150,9 @@ commercial license before using this data in a revenue-generating service.
 
 ### Find nearby cinemas with OpenStreetMap
 
-The showtimes page has an optional cinema search using OpenStreetMap's public Nominatim geocoder and Overpass data service. No API key, account, or paid billing is required. Search by city or area; results are community-maintained and can be incomplete. This feature does not provide showtimes, seat availability, or ticket inventory.
+The showtimes page has an optional cinema search using OpenStreetMap's public Nominatim search service. No API key, account, or paid billing is required. Search by city or area; results are community-maintained and can be incomplete. This feature does not provide showtimes, seat availability, or ticket inventory.
 
-The app caches search results and rate-limits requests to the public services. Do not turn this into autocomplete or high-volume/bulk queries. The built-in in-memory cache is suitable for local development and a single app process; for a multi-worker production deployment, configure a shared cache backend or use a hosted OSM-compatible provider. Results are attributed to [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) and link to OpenStreetMap. See the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) and [Overpass API guidance](https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances).
+The app caches search results and rate-limits requests to the public service. Do not turn this into autocomplete or high-volume/bulk queries. The built-in in-memory cache is suitable for local development and a single app process; for a multi-worker production deployment, configure a shared cache backend or use a hosted OSM-compatible provider. Results are attributed to [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) and link to OpenStreetMap. Follow the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/).
 
 ## Contributing
 

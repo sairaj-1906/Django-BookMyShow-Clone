@@ -1,7 +1,7 @@
 import json
 from io import BytesIO
 from unittest.mock import patch
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlparse
 
 from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase
@@ -16,70 +16,59 @@ class OpenStreetMapClientTests(SimpleTestCase):
         cache.clear()
 
     @patch("movies.places.urlopen")
-    def test_search_geocodes_then_finds_nearest_cinemas(self, urlopen):
-        geocoding_response = BytesIO(
-            json.dumps([{"lat": "18.5204", "lon": "73.8567"}]).encode()
-        )
-        cinema_response = BytesIO(
+    def test_search_returns_cinema_places_with_attribution_links(self, urlopen):
+        response = BytesIO(
             json.dumps(
-                {
-                    "elements": [
-                        {
-                            "type": "way",
-                            "center": {"lat": 18.53, "lon": 73.86},
-                            "tags": {
-                                "amenity": "cinema",
-                                "name": "Central Cinema",
-                                "addr:street": "Main Street",
-                                "addr:city": "Pune",
-                            },
-                        },
-                        {
-                            "type": "node",
-                            "lat": 18.52,
-                            "lon": 73.85,
-                            "tags": {
-                                "amenity": "cinema",
-                                "name": "Closest Cinema",
-                            },
-                        },
-                        {
-                            "type": "node",
-                            "lat": 18.52,
-                            "lon": 73.85,
-                            "tags": {"amenity": "cinema"},
-                        },
-                    ]
-                }
+                [
+                    {
+                        "category": "amenity",
+                        "type": "cinema",
+                        "osm_type": "node",
+                        "osm_id": 123,
+                        "name": "Central Cinema",
+                        "lat": "18.5204",
+                        "lon": "73.8567",
+                        "address": {"road": "Main Street", "city": "Pune"},
+                    },
+                    {
+                        "category": "amenity",
+                        "type": "clinic",
+                        "osm_type": "node",
+                        "osm_id": 124,
+                        "name": "Cinema Clinic",
+                        "lat": "18.5205",
+                        "lon": "73.8568",
+                    },
+                    {
+                        "category": "amenity",
+                        "type": "cinema",
+                        "osm_type": "way",
+                        "osm_id": 125,
+                        "name": "Cinema without coordinates",
+                    },
+                ]
             ).encode()
         )
-        urlopen.return_value.__enter__.side_effect = [
-            geocoding_response,
-            cinema_response,
-        ]
+        urlopen.return_value.__enter__.return_value = response
 
         cinemas = OpenStreetMapClient().search_cinemas("Pune")
 
-        self.assertEqual(len(cinemas), 2)
-        self.assertEqual(cinemas[0]["name"], "Closest Cinema")
-        self.assertEqual(cinemas[1]["address"], "Main Street, Pune")
+        self.assertEqual(len(cinemas), 1)
+        self.assertEqual(cinemas[0]["name"], "Central Cinema")
+        self.assertEqual(cinemas[0]["address"], "Main Street, Pune")
         self.assertIn("openstreetmap.org/?mlat=", cinemas[0]["maps_url"])
-        self.assertGreaterEqual(cinemas[1]["distance_km"], cinemas[0]["distance_km"])
-        geocode_request = urlopen.call_args_list[0].args[0]
-        self.assertIn("nominatim.openstreetmap.org/search", geocode_request.full_url)
+        request = urlopen.call_args.args[0]
         self.assertEqual(
-            geocode_request.get_header("User-agent"),
-            OpenStreetMapClient.USER_AGENT,
+            request.get_header("User-agent"), OpenStreetMapClient.USER_AGENT
         )
-        overpass_request = urlopen.call_args_list[1].args[0]
-        query = parse_qs(overpass_request.data.decode())["data"][0]
-        self.assertIn('["amenity"="cinema"]', query)
-        self.assertIn("around:15000", query)
+        query = parse_qs(urlparse(request.full_url).query)
+        self.assertEqual(query["q"], ["cinema in pune, India"])
+        self.assertEqual(query["countrycodes"], ["in"])
+        self.assertEqual(query["limit"], ["30"])
 
     @patch("movies.places.urlopen")
     def test_search_results_are_cached(self, urlopen):
-        geocoding_response = BytesIO(json.dumps([]).encode())
-        urlopen.return_value.__enter__.return_value = geocoding_response
+        urlopen.return_value.__enter__.return_value = BytesIO(b"[]")
         client = OpenStreetMapClient()
 
         self.assertEqual(client.search_cinemas("Pune"), [])
@@ -88,18 +77,29 @@ class OpenStreetMapClientTests(SimpleTestCase):
         urlopen.assert_called_once()
 
     @patch("movies.places.urlopen")
-    def test_uncached_geocoding_is_throttled(self, urlopen):
+    def test_uncached_requests_are_rate_limited(self, urlopen):
         cache.set("osm-cinema:nominatim:last-request", True, timeout=30)
         with self.assertRaisesMessage(OpenStreetMapError, "wait a moment"):
             OpenStreetMapClient().search_cinemas("Pune")
         urlopen.assert_not_called()
 
     @patch("movies.places.urlopen")
-    def test_invalid_coordinates_are_rejected(self, urlopen):
-        response = BytesIO(json.dumps([{"lat": "900", "lon": "73"}]).encode())
+    def test_invalid_coordinate_results_are_ignored(self, urlopen):
+        response = BytesIO(
+            json.dumps(
+                [
+                    {
+                        "category": "amenity",
+                        "type": "cinema",
+                        "name": "Bad coordinates",
+                        "lat": "900",
+                        "lon": "73",
+                    }
+                ]
+            ).encode()
+        )
         urlopen.return_value.__enter__.return_value = response
-        with self.assertRaisesMessage(OpenStreetMapError, "out-of-range"):
-            OpenStreetMapClient().search_cinemas("Pune")
+        self.assertEqual(OpenStreetMapClient().search_cinemas("Pune"), [])
 
 
 class NearbyCinemaViewTests(TestCase):
@@ -121,7 +121,6 @@ class NearbyCinemaViewTests(TestCase):
                 "name": "Central Cinema",
                 "address": "Main Street, Pune",
                 "maps_url": "https://www.openstreetmap.org/?mlat=18.5&mlon=73.8",
-                "distance_km": 1.2,
             }
         ]
 
